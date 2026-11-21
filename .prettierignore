@@ -6,3 +6,4 @@ schemas/*.json
 **/__snapshots__
 packages/cli/web
 packages/cli/catalog
+packages/cli/README.md
