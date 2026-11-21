@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "./fixtures.ts";
 
@@ -172,4 +172,67 @@ test("turns on catalog specialists and their MCP servers", async ({ page, startU
   expect(mcp.mcpServers.github.headers.Authorization).toBe(
     "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}",
   );
+});
+
+test("sets runner options and shows run logs", async ({ page, startUi }) => {
+  const ui = await startUi({
+    config: {
+      version: 1,
+      project: { name: "X" },
+      roles: { pm: { enabled: true }, "lead-dev": { enabled: true }, developer: { enabled: true } },
+    },
+  });
+  const runs = join(ui.projectDir, "team/runs");
+  mkdirSync(runs, { recursive: true });
+  writeFileSync(
+    join(runs, "2026-11-21T10-00-00-000Z.jsonl"),
+    [
+      {
+        kind: "start",
+        at: "2026-11-21T10:00:00.000Z",
+        goal: "Add a blog",
+        layered: true,
+        agents: ["architect"],
+      },
+      { kind: "text", at: "x", agent: "pm", text: "Planning the blog." },
+      { kind: "delegate", at: "x", task: "Build the post list" },
+      { kind: "tool", at: "x", agent: "developer-1", tool: "Bash", summary: "npm test" },
+      { kind: "delegate-done", at: "x", ok: true, costUsd: 0.8, turns: 6 },
+      {
+        kind: "result",
+        at: "x",
+        ok: true,
+        subtype: "success",
+        text: "Blog added.",
+        costUsd: 0.4,
+        teamCostUsd: 0.8,
+        turns: 9,
+        sessionId: "s",
+      },
+    ]
+      .map((e) => JSON.stringify(e))
+      .join("\n"),
+  );
+
+  await page.goto(ui.url);
+  await page.getByRole("tab", { name: "Workflow" }).click();
+  await page.getByLabel(/Layered team/).check();
+  await page.getByLabel("Budget per run (USD)").fill("5");
+  await page.getByLabel("Permissions").selectOption("default");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  expect(readJson(join(ui.projectDir, "team.json")).runner).toEqual({
+    layered: true,
+    maxBudgetUsd: 5,
+    permissionMode: "default",
+  });
+
+  await page.getByRole("tab", { name: "Runs" }).click();
+  const row = page.getByRole("row", { name: /Add a blog/ });
+  await expect(row).toContainText("done");
+  await expect(row).toContainText("$1.20");
+  await row.getByRole("button").click();
+  await expect(page.getByText("pm ⇒ lead-dev team:")).toBeVisible();
+  await expect(page.getByText("Blog added.")).toBeVisible();
+  await expect(page.locator(".run-log")).toContainText("developer-1 → Bash npm test");
 });

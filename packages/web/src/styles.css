@@ -459,3 +459,47 @@ pre.diff .hunk {
   flex-wrap: wrap;
   margin-top: 0.8rem;
 }
+
+.run-status {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.run-status.done {
+  color: var(--good);
+}
+.run-status.running {
+  color: var(--accent);
+}
+.run-status.stopped {
+  color: var(--warn);
+}
+.run-status.failed {
+  color: var(--bad);
+}
+tr.selected td {
+  background: var(--code-bg);
+}
+.run-log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.run-log .ev {
+  border-left: 3px solid var(--border);
+  padding: 0.2rem 0.6rem;
+}
+.run-log .ev.text,
+.run-log .ev.result {
+  border-left-color: var(--accent);
+}
+.run-log .ev.denied,
+.run-log .ev.error {
+  border-left-color: var(--bad);
+}
+.ev-text {
+  white-space: pre-wrap;
+  margin-top: 0.2rem;
+}

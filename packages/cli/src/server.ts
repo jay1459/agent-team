@@ -19,6 +19,7 @@ import { readConfigFile, writeConfigFile } from "./config-file.js";
 import { generate, GenerateError } from "./generate.js";
 import { applyPlan, diffChange, pendingChanges, planApply, PlanError } from "./plan.js";
 import { deleteProfile, listProfiles, loadProfile, ProfileError, saveProfile } from "./profiles.js";
+import { listRuns, readRun } from "./run/run-log.js";
 
 export type UiServerOptions = {
   projectDir: string;
@@ -214,6 +215,20 @@ export function createUiHandler(opts: UiServerOptions & { token: string }) {
         written: pending.map((c) => ({ path: c.path, kind: c.kind })),
         warnings: plan.warnings,
       });
+    }
+
+    // Runs are started from the terminal (agent-team run); the UI only shows their logs.
+    const workspaceDir = () => {
+      const file = readConfigFile(configPath);
+      const ws = file.exists && file.result.ok ? file.result.value.workflow.workspace : "team/";
+      return join(projectDir, ws);
+    };
+    if (method === "GET" && path === "/api/runs") return send(res, 200, listRuns(workspaceDir()));
+    const runMatch = /^\/api\/runs\/([0-9TZ-]+)$/.exec(path);
+    if (method === "GET" && runMatch) {
+      const events = readRun(workspaceDir(), runMatch[1]!);
+      if (!events) throw new HttpError(404, "No such run");
+      return send(res, 200, events);
     }
 
     const profileMatch = /^\/api\/profiles\/([a-z0-9-]+)$/.exec(path);

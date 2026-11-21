@@ -182,6 +182,27 @@ describe("team.json", () => {
     }
   });
 
+  it("has runner defaults and checks layered teams have a lead developer and developers", () => {
+    const parsed = parseTeamConfig(minimal());
+    expect(parsed.ok && parsed.value.runner).toEqual({
+      layered: false,
+      permissionMode: "acceptEdits",
+    });
+    expect(errorsFor({ ...minimal(), runner: { layered: true } })).toEqual([
+      "runner.layered: A layered team needs both the lead developer and developers switched on",
+    ]);
+    const layered = {
+      ...minimal(),
+      roles: { pm: { enabled: true }, "lead-dev": { enabled: true }, developer: { enabled: true } },
+      runner: { layered: true, maxBudgetUsd: 20, teamBudgetUsd: 5, permissionMode: "default" },
+    };
+    expect(parseTeamConfig(layered).ok).toBe(true);
+    expect(errorsFor({ ...minimal(), runner: { maxBudgetUsd: 0 } })).not.toEqual([]);
+    expect(
+      errorsFor({ ...minimal(), runner: { permissionMode: "bypassPermissions" } }),
+    ).not.toEqual([]);
+  });
+
   it("rejects unknown approval gates", () => {
     expect(errorsFor({ ...minimal(), workflow: { humanApproval: ["vibes"] } })).not.toEqual([]);
   });

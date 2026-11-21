@@ -43,6 +43,18 @@ export type Preview = {
   changes: PreviewChange[];
 };
 
+export type RunSummary = {
+  id: string;
+  goal: string;
+  startedAt: string;
+  status: "running" | "done" | "failed" | "stopped";
+  costUsd?: number;
+  sessionId?: string;
+};
+
+/** One line of a run log; see packages/cli/src/run/run-log.ts. */
+export type RunEvent = { kind: string; at: string; [key: string]: unknown };
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -88,6 +100,8 @@ export const api = {
       config,
     }),
   profiles: () => call<ProfileInfo[]>("GET", "/api/profiles"),
+  runs: () => call<RunSummary[]>("GET", "/api/runs"),
+  run: (id: string) => call<RunEvent[]>("GET", `/api/runs/${encodeURIComponent(id)}`),
   profile: (name: string) => call<Profile>("GET", `/api/profiles/${encodeURIComponent(name)}`),
   saveProfile: (body: {
     name: string;

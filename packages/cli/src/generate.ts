@@ -74,6 +74,8 @@ export type Generated = {
   /** Starter files for the shared workspace, only created if missing. */
   workspace: GeneratedFile[];
   agents: AgentSummary[];
+  /** Each agent's full prompt (the body of its file), for the Agent SDK runner. */
+  prompts: Record<string, string>;
   pmModel: Model;
   warnings: string[];
 };
@@ -161,6 +163,7 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
   const files: GeneratedFile[] = [];
   const mcpServers: Generated["mcpServers"] = {};
   const mcpUses: McpUse[] = [];
+  const prompts: Record<string, string> = {};
 
   // Roles -------------------------------------------------------------------
   const roleIds = [...catalog.roles.keys()];
@@ -193,6 +196,7 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
         ? `\n\nYou are ${def.title.toLowerCase()} ${n} of ${count}. The others may be working in the same project at the same time on different tasks, so stay within the files your task names.`
         : "";
       agents.push(agent);
+      prompts[agent.name] = (prompt + note).trim();
       files.push(agentFile(agent, prompt + note));
     }
   }
@@ -263,7 +267,8 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
       docs: docs.length ? `Start with:\n${docs.map((d) => `  - ${d}`).join("\n")}` : "",
     }).replace(/\n{3,}/g, "\n\n");
     agents.push(agent);
-    files.push(agentFile(agent, withAppend(prompt, spec.promptAppend)));
+    prompts[agent.name] = withAppend(prompt, spec.promptAppend).trim();
+    files.push(agentFile(agent, prompts[agent.name]!));
   }
 
   const names = new Set<string>();
@@ -327,5 +332,15 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
   ];
 
   files.sort((a, b) => a.path.localeCompare(b.path));
-  return { files, claudeSection, mcpServers, mcp: mcpUses, workspace, agents, pmModel, warnings };
+  return {
+    files,
+    claudeSection,
+    mcpServers,
+    mcp: mcpUses,
+    workspace,
+    agents,
+    prompts,
+    pmModel,
+    warnings,
+  };
 }

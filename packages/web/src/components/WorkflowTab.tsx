@@ -67,6 +67,99 @@ export function WorkflowTab({ draft, edit, catalog, errors }: Props) {
       </section>
 
       <section className="panel">
+        <h2>Unattended runs</h2>
+        <p className="muted">
+          For <code>agent-team run</code>, which runs the team on the Claude Agent SDK without you
+          in a chat. Runs are billed, so set a budget.
+        </p>
+        <label className="inline">
+          <input
+            type="checkbox"
+            checked={draft.runner?.layered ?? false}
+            onChange={(e) =>
+              edit((d) => {
+                d.runner = { ...d.runner, layered: e.target.checked };
+              })
+            }
+          />
+          Layered team: the lead developer directs the developers, and the PM hands build work to
+          the lead developer
+        </label>
+        <div className="grid-2">
+          <Field
+            label="Budget per run (USD)"
+            hint="The PM's session stops once it has spent this much."
+          >
+            {(id) => (
+              <input
+                id={id}
+                type="number"
+                min={0}
+                step={0.5}
+                value={draft.runner?.maxBudgetUsd ?? ""}
+                placeholder="No limit"
+                onChange={(e) =>
+                  edit((d) => {
+                    const runner = { ...d.runner };
+                    if (e.target.value === "") delete runner.maxBudgetUsd;
+                    else runner.maxBudgetUsd = Number(e.target.value);
+                    d.runner = runner;
+                  })
+                }
+              />
+            )}
+          </Field>
+          <Field
+            label="Budget per team hand-off (USD)"
+            hint="Layered runs: caps each task the lead developer's team takes on."
+          >
+            {(id) => (
+              <input
+                id={id}
+                type="number"
+                min={0}
+                step={0.5}
+                value={draft.runner?.teamBudgetUsd ?? ""}
+                placeholder="No limit"
+                onChange={(e) =>
+                  edit((d) => {
+                    const runner = { ...d.runner };
+                    if (e.target.value === "") delete runner.teamBudgetUsd;
+                    else runner.teamBudgetUsd = Number(e.target.value);
+                    d.runner = runner;
+                  })
+                }
+              />
+            )}
+          </Field>
+        </div>
+        <Field
+          label="Permissions"
+          hint="Anything not allowed here is asked about in the terminal (or refused when nobody can answer)."
+        >
+          {(id) => (
+            <select
+              id={id}
+              value={draft.runner?.permissionMode ?? "acceptEdits"}
+              onChange={(e) =>
+                edit((d) => {
+                  d.runner = {
+                    ...d.runner,
+                    permissionMode: e.target.value as "default" | "acceptEdits" | "plan",
+                  };
+                })
+              }
+            >
+              <option value="acceptEdits">Agents may edit files; ask before commands</option>
+              <option value="default">Ask before edits and commands</option>
+              <option value="plan">Plan only: no changes</option>
+            </select>
+          )}
+        </Field>
+        <FieldErrors errors={errors} path="runner" />
+      </section>
+
+      <section className="panel">
         <h2>Secrets</h2>
         <p className="muted">
           Names the agents may need, mapped to environment variables on your machine. Only
