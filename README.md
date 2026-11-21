@@ -8,8 +8,33 @@ developers, presales, sales), which model each one uses, and which specialists t
 Claude Code already understands, so you then just run `claude` in your project and type
 `/team <goal>`.
 
-> **Status: early.** This first release has the config schema, the role catalog and examples.
-> The CLI, generator and web UI follow; see the [roadmap](#roadmap).
+> **Status: early.** The schema, role catalog and command-line tool work. The web UI follows; see
+> the [roadmap](#roadmap).
+
+## Quick start
+
+From a clone of this repo (an npm release comes later):
+
+```sh
+npm install && npm run build
+cd ~/my-project
+node ~/agent-team/packages/cli/dist/cli.js init --profile dev-team   # writes team.json
+node ~/agent-team/packages/cli/dist/cli.js apply                     # shows the plan, asks, writes
+claude                                                               # then: /team add a login page
+```
+
+| Command                                    | What it does                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| `agent-team init [--profile <name>]`       | Create `team.json`, from a profile if given                        |
+| `agent-team validate`                      | Check `team.json`                                                  |
+| `agent-team apply [--dry-run] [--diff]`    | Show what will change, ask, then write the files Claude Code reads |
+| `agent-team profile list`                  | Built-in profiles (`minimal`, `dev-team`, `consultancy`) and yours |
+| `agent-team profile save <name>`           | Save this project's team as a profile                              |
+| `agent-team profile show \| delete <name>` | Look at or remove a saved profile                                  |
+
+`apply` keeps your own text in `CLAUDE.md` and `.mcp.json`. It never overwrites the team's
+working files in `team/`. When an agent leaves the team, its file is removed, unless you've edited
+it by hand, in which case it's left in place with a warning.
 
 ## How it works
 
@@ -86,7 +111,7 @@ rejects anything else, so `team.json` is safe to commit.
 ## Roadmap
 
 1. ✅ Schema, role catalog, examples, tests
-2. CLI and generator: `agent-team validate`, `agent-team apply`, `/team` command
+2. ✅ CLI and generator: `init`, `validate`, `apply`, `profile`, `/team` command
 3. Local web UI: team, specialists, workflow, profiles, preview, apply
 4. Specialist catalog (Azure, Dynamics 365, AWS, …), custom specialists, MCP set-up, `agent-team doctor`
 5. Optional Agent SDK runner: layered teams (lead developer directs developers), cost limits, run log

@@ -5,7 +5,7 @@
 | Package               | Status  | Job                                                                          |
 | --------------------- | ------- | ---------------------------------------------------------------------------- |
 | `packages/schema`     | done    | Zod schema for `team.json`, profiles and catalog entries; JSON Schema export |
-| `packages/cli`        | phase 2 | `agent-team ui`, `validate`, `apply`, `init`, `profile`, `doctor`            |
+| `packages/cli`        | done    | `agent-team ui`, `validate`, `apply`, `init`, `profile`, `doctor`            |
 | `packages/web`        | phase 3 | Vite + React UI served by `agent-team ui`                                    |
 | `packages/runner`     | phase 5 | Optional Agent SDK orchestrator                                              |
 | `catalog/roles`       | done    | One markdown file per role: frontmatter (model, tools) + prompt              |
@@ -53,6 +53,11 @@ Claude Code subagents can't start other subagents. So:
 
 Phase 5 adds an optional runner on the Claude Agent SDK, driven by the same `team.json`, for teams
 that need real layers, per-role cost limits or unattended runs.
+
+## Templates
+
+`catalog/templates/` holds the CLAUDE.md section, the `/team` command and the shared specialist
+prompt. `catalog/profiles/` holds the built-in profiles.
 
 ## Prompt placeholders
 

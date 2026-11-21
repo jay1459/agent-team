@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jay1459/agent-team/main/schemas/profile.schema.json",
+  "version": 1,
+  "name": "consultancy",
+  "description": "A full delivery team from sale to build: every role switched on.",
+  "roles": {
+    "pm": { "enabled": true, "model": "opus" },
+    "architect": { "enabled": true, "model": "opus" },
+    "lead-dev": { "enabled": true, "model": "sonnet" },
+    "developer": { "enabled": true, "model": "sonnet", "count": 3 },
+    "presales": { "enabled": true, "model": "sonnet" },
+    "sales": { "enabled": true, "model": "haiku", "count": 2 }
+  },
+  "workflow": {
+    "humanApproval": ["requirements", "architecture", "estimate", "customer-facing-docs", "merge"],
+    "workspace": "team/"
+  }
+}

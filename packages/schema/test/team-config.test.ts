@@ -25,7 +25,7 @@ describe("team.json", () => {
     const result = parseTeamConfig(minimal());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.defaults.model).toBe("sonnet");
+    expect(result.value.defaults).toEqual({});
     expect(result.value.specialists).toEqual([]);
     expect(result.value.workflow).toEqual({
       humanApproval: ["architecture", "merge"],
@@ -151,6 +151,26 @@ describe("team.json", () => {
         ]),
       ),
     ).not.toEqual([]);
+  });
+
+  it("accepts remote MCP servers whose headers only reference environment variables", () => {
+    const withMcp = (mcp: object) => ({
+      ...minimal(),
+      specialists: [
+        { id: "custom:gh", enabled: true, title: "GitHub", description: "GitHub", mcp },
+      ],
+    });
+    const http = { type: "http", url: "https://api.example.com/mcp" };
+    expect(parseTeamConfig(withMcp(http)).ok).toBe(true);
+    expect(
+      parseTeamConfig(withMcp({ ...http, headers: { Authorization: "Bearer {env:GH_TOKEN}" } })).ok,
+    ).toBe(true);
+    expect(parseTeamConfig(withMcp({ ...http, headers: { "X-Key": "{env:KEY}" } })).ok).toBe(true);
+    expect(
+      parseTeamConfig(withMcp({ ...http, headers: { Authorization: "Bearer ghp_123" } })).ok,
+    ).toBe(false);
+    expect(parseTeamConfig(withMcp({ ...http, url: "file:///etc/passwd" })).ok).toBe(false);
+    expect(parseTeamConfig(withMcp({ ...http, command: "npx" })).ok).toBe(false);
   });
 
   it("keeps the workspace inside the project", () => {

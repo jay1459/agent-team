@@ -15,7 +15,7 @@
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc -p packages/schema --noEmit",
+    "typecheck": "npm run build -w @agent-team/schema && tsc -p packages/schema --noEmit && tsc -p packages/cli --noEmit",
     "schemas": "npm run build -w @agent-team/schema && node packages/schema/scripts/export-json-schema.mjs"
   },
   "devDependencies": {

@@ -19,13 +19,10 @@
       "maxLength": 1000
     },
     "defaults": {
-      "default": {
-        "model": "sonnet"
-      },
+      "default": {},
       "type": "object",
       "properties": {
         "model": {
-          "default": "sonnet",
           "anyOf": [
             {
               "type": "string",
@@ -43,7 +40,8 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "roles": {
       "type": "object",
@@ -215,33 +213,74 @@
                 "type": "boolean"
               },
               {
-                "type": "object",
-                "properties": {
-                  "command": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "args": {
-                    "default": [],
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "env": {
-                    "default": {},
+                "anyOf": [
+                  {
                     "type": "object",
-                    "propertyNames": {
-                      "type": "string"
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "http"
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "headers": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9-]+$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "pattern": "^([A-Za-z]+ )?\\{env:[A-Za-z_][A-Za-z0-9_]*\\}$"
+                        }
+                      }
                     },
-                    "additionalProperties": {
-                      "type": "string",
-                      "pattern": "^env:[A-Za-z_][A-Za-z0-9_]*$"
-                    }
+                    "required": [
+                      "type",
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "default": "stdio",
+                        "type": "string",
+                        "const": "stdio"
+                      },
+                      "command": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "args": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "env": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "pattern": "^env:[A-Za-z_][A-Za-z0-9_]*$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "command"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "command"
                 ]
               }
             ]
