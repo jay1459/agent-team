@@ -14,34 +14,9 @@ bundled into it, so nothing else is published.
    - **By hand:** `npm login`, then `npm publish -w @jay1459/agent-team` (it's public; see
      `publishConfig`).
    - **From GitHub Actions** (recommended, adds provenance): add an `NPM_TOKEN` repository secret
-     (an npm automation token) and the release workflow below. Pushing a `v*` tag then publishes.
-
-```yaml
-# .github/workflows/release.yml
-name: Release
-on:
-  push:
-    tags: ["v*"]
-permissions:
-  contents: read
-  id-token: write # npm provenance
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
-      - run: npm publish -w @jay1459/agent-team
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-```
+     (an npm automation token). Pushing a `v*` tag then runs
+     [`.github/workflows/release.yml`](../.github/workflows/release.yml), which builds, tests and
+     publishes.
 
 Before a release, it's worth running the paid smoke test once: `AGENT_TEAM_SMOKE=1 npm run
 smoke:run`, which costs about $0.50 at most.
