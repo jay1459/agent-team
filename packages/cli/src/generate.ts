@@ -35,6 +35,33 @@ export type AgentSummary = {
 
 export type GeneratedFile = { path: string; content: string };
 
+export type McpUse = {
+  name: string;
+  specialist: string;
+  server: McpServer;
+  /** Environment variables the server needs (from the catalog and any env references). */
+  requires: string[];
+  note?: string;
+};
+
+/** Every environment variable an MCP server definition refers to. */
+export function envVarsIn(server: McpServer): string[] {
+  const found = new Set<string>();
+  const scan = (text: string) => {
+    for (const m of text.matchAll(/\$\{(\w+)\}|\{env:(\w+)\}|^env:(\w+)$/g))
+      found.add((m[1] ?? m[2] ?? m[3])!);
+  };
+  if (server.type === "http") {
+    scan(server.url);
+    Object.values(server.headers).forEach(scan);
+  } else {
+    scan(server.command);
+    server.args.forEach(scan);
+    Object.values(server.env).forEach(scan);
+  }
+  return [...found];
+}
+
 export type Generated = {
   /** Files agent-team owns outright: written on every apply, removed when no longer needed. */
   files: GeneratedFile[];
@@ -42,6 +69,8 @@ export type Generated = {
   claudeSection: string;
   /** Servers agent-team manages in .mcp.json, keyed by name, in .mcp.json format. */
   mcpServers: Record<string, Record<string, unknown>>;
+  /** MCP servers in use, with what they need, for `agent-team doctor`. */
+  mcp: McpUse[];
   /** Starter files for the shared workspace, only created if missing. */
   workspace: GeneratedFile[];
   agents: AgentSummary[];
@@ -131,6 +160,7 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
   const agents: AgentSummary[] = [];
   const files: GeneratedFile[] = [];
   const mcpServers: Generated["mcpServers"] = {};
+  const mcpUses: McpUse[] = [];
 
   // Roles -------------------------------------------------------------------
   const roleIds = [...catalog.roles.keys()];
@@ -187,7 +217,7 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
         def?.tools ?? ["Read", "Grep", "Glob", "Write", "Edit", "WebFetch", "WebSearch"]),
     ];
 
-    let mcp: { name: string; server: McpServer } | undefined;
+    let mcp: { name: string; server: McpServer; requires?: string[]; note?: string } | undefined;
     if (typeof spec.mcp === "object") mcp = { name: slug, server: spec.mcp };
     else if (spec.mcp === true) {
       if (def?.mcp) mcp = def.mcp;
@@ -197,9 +227,22 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
         );
     }
     if (mcp) {
-      if (mcpServers[mcp.name])
-        throw new GenerateError(`Two specialists use the MCP server name "${mcp.name}"`);
-      mcpServers[mcp.name] = toMcpJson(mcp.server);
+      const server = toMcpJson(mcp.server);
+      const existing = mcpServers[mcp.name];
+      // Specialists may share a server (e.g. Microsoft Learn docs), but only an identical one.
+      if (existing && JSON.stringify(existing) !== JSON.stringify(server)) {
+        throw new GenerateError(
+          `Two specialists use the MCP server name "${mcp.name}" with different settings`,
+        );
+      }
+      mcpServers[mcp.name] = server;
+      mcpUses.push({
+        name: mcp.name,
+        specialist: spec.id,
+        server: mcp.server,
+        requires: [...new Set([...(mcp.requires ?? []), ...envVarsIn(mcp.server)])],
+        ...(mcp.note ? { note: mcp.note } : {}),
+      });
       const toolName = `mcp__${mcp.name}`;
       if (!tools.includes(toolName)) tools.push(toolName);
     }
@@ -284,5 +327,5 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
   ];
 
   files.sort((a, b) => a.path.localeCompare(b.path));
-  return { files, claudeSection, mcpServers, workspace, agents, pmModel, warnings };
+  return { files, claudeSection, mcpServers, mcp: mcpUses, workspace, agents, pmModel, warnings };
 }

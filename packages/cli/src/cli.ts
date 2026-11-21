@@ -11,6 +11,7 @@ import { generate } from "./generate.js";
 import { applyPlan, diffChange, pendingChanges, planApply, summarisePlan } from "./plan.js";
 import { deleteProfile, listProfiles, loadProfile, saveProfile } from "./profiles.js";
 import { isLoopback, startUiServer } from "./server.js";
+import { defaultDeps, formatChecks, runDoctor, type DoctorDeps } from "./doctor.js";
 
 export const DEFAULT_UI_PORT = 7420;
 
@@ -37,6 +38,7 @@ Usage
   agent-team profile save <name> [--description <text>] [--force]
                               Save this project's team as a reusable profile
   agent-team profile delete <name>
+  agent-team doctor           Check this project is ready to run
   agent-team ui [--host <addr>] [--port <n>]
                               Edit the team in your browser (default http://127.0.0.1:7420)
 
@@ -227,8 +229,28 @@ async function cmdUi(args: Args, io: Io, catalog: Catalog): Promise<number> {
   return 0;
 }
 
+/** Swapped out in tests. */
+export const doctorDeps: { get: () => DoctorDeps } = { get: defaultDeps };
+
+async function cmdDoctor(args: Args, io: Io, catalog: Catalog): Promise<number> {
+  const { projectDir, configPath } = paths(args, io);
+  const checks = runDoctor(projectDir, configPath, catalog, doctorDeps.get());
+  io.out(formatChecks(checks));
+  const errors = checks.filter((c) => c.level === "error").length;
+  const warnings = checks.filter((c) => c.level === "warn").length;
+  io.out(
+    errors
+      ? `\n${errors} problem(s) to fix.`
+      : warnings
+        ? `\nReady, with ${warnings} warning(s).`
+        : "\nReady. Run `claude` here and type /team <goal>.",
+  );
+  return errors ? 1 : 0;
+}
+
 const COMMANDS: Record<string, (args: Args, io: Io, catalog: Catalog) => Promise<number>> = {
   ui: cmdUi,
+  doctor: cmdDoctor,
   init: cmdInit,
   validate: cmdValidate,
   apply: cmdApply,

@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { generate, GenerateError, render, toMcpJson } from "../src/generate.js";
+import { envVarsIn, generate, GenerateError, render, toMcpJson } from "../src/generate.js";
 import { catalog, config, exampleConfig } from "./helpers.js";
 
 describe("generate", () => {
   it("matches the snapshot for the consultancy example", async () => {
-    // The consultancy example uses catalog specialists, which arrive in a later phase.
-    const cfg = exampleConfig("consultancy");
-    cfg.specialists = cfg.specialists.filter((s) => s.id.startsWith("custom:"));
-    const out = generate(cfg, catalog);
+    const out = generate(exampleConfig("consultancy"), catalog);
     for (const file of out.files) {
       await expect(file.content).toMatchFileSnapshot(`__snapshots__/consultancy/${file.path}`);
     }
     await expect(out.claudeSection).toMatchFileSnapshot(
       "__snapshots__/consultancy/CLAUDE-section.md",
+    );
+    await expect(`${JSON.stringify(out.mcpServers, null, 2)}\n`).toMatchFileSnapshot(
+      "__snapshots__/consultancy/mcp-servers.json",
     );
   });
 
@@ -205,7 +205,7 @@ describe("generate", () => {
         }),
         withStub,
       ),
-    ).toThrow('Two specialists use the MCP server name "twilio"');
+    ).toThrow('Two specialists use the MCP server name "twilio" with different settings');
   });
 
   it("warns when mcp is on but the catalog entry has no server", () => {
@@ -234,6 +234,83 @@ describe("generate", () => {
       'Specialist "docs" has "mcp": true but the catalog has no MCP server for it.',
     ]);
     expect(out.agents[0]!.model).toBe("haiku");
+  });
+});
+
+describe("catalog specialists", () => {
+  it("builds every catalog specialist with its MCP server", () => {
+    const out = generate(
+      config({
+        specialists: [...catalog.specialists.keys()].map((id) => ({
+          id,
+          enabled: true,
+          mcp: true,
+        })),
+      }),
+      catalog,
+    );
+    expect(out.warnings).toEqual([]);
+    expect(out.agents.map((a) => a.name).sort()).toEqual(
+      [...catalog.specialists.keys()].map((id) => `${id}-specialist`).sort(),
+    );
+    // Power Platform and Microsoft 365 share one Microsoft Learn server.
+    expect(Object.keys(out.mcpServers).sort()).toEqual([
+      "aws-knowledge",
+      "azure",
+      "dataverse",
+      "github",
+      "google-developer-knowledge",
+      "microsoft-learn",
+      "salesforce",
+      "stripe",
+    ]);
+    for (const id of ["power-platform", "microsoft-365"]) {
+      expect(out.agents.find((a) => a.name === `${id}-specialist`)!.tools).toContain(
+        "mcp__microsoft-learn",
+      );
+    }
+    expect(out.mcpServers.dataverse).toEqual({
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@microsoft/dataverse", "mcp", "${DATAVERSE_URL}"],
+    });
+    expect(out.mcpServers.github).toEqual({
+      type: "http",
+      url: "https://api.githubcopilot.com/mcp/",
+      headers: { Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}" },
+    });
+    expect(out.mcp.find((m) => m.name === "github")!.requires).toEqual([
+      "GITHUB_PERSONAL_ACCESS_TOKEN",
+    ]);
+  });
+
+  it("leaves MCP off unless asked, and still gives docs links", () => {
+    const out = generate(config({ specialists: [{ id: "azure", enabled: true }] }), catalog);
+    expect(out.mcpServers).toEqual({});
+    const file = out.files.find((f) => f.path === ".claude/agents/azure-specialist.md")!.content;
+    expect(file).not.toContain("mcp__azure");
+    expect(file).toContain("https://learn.microsoft.com/azure/");
+    expect(file).toContain("### What to bring");
+  });
+});
+
+describe("envVarsIn", () => {
+  it("finds every variable a server refers to", () => {
+    expect(
+      envVarsIn({
+        type: "stdio",
+        command: "npx",
+        args: ["x", "${ORG_URL}"],
+        env: { KEY: "env:MY_KEY" },
+      }).sort(),
+    ).toEqual(["MY_KEY", "ORG_URL"]);
+    expect(
+      envVarsIn({
+        type: "http",
+        url: "https://x.example",
+        headers: { A: "Bearer {env:TOKEN}", B: "{env:OTHER}" },
+      }).sort(),
+    ).toEqual(["OTHER", "TOKEN"]);
   });
 });
 

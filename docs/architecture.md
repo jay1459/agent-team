@@ -9,7 +9,7 @@
 | `packages/web`        | done    | Vite + React UI served by `agent-team ui`                                    |
 | `packages/runner`     | phase 5 | Optional Agent SDK orchestrator                                              |
 | `catalog/roles`       | done    | One markdown file per role: frontmatter (model, tools) + prompt              |
-| `catalog/specialists` | phase 4 | Same format plus docs links and an optional MCP server                       |
+| `catalog/specialists` | done    | Same format plus docs links and an optional MCP server                       |
 
 The schema package is the single source of truth. The UI uses it for live checking, the CLI uses
 it before generating anything, and `schemas/*.schema.json` is exported from it for editors. A test

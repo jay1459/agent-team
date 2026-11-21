@@ -8,8 +8,8 @@ developers, presales, sales), which model each one uses, and which specialists t
 Claude Code already understands, so you then just run `claude` in your project and type
 `/team <goal>`.
 
-> **Status: early.** The schema, role catalog, command-line tool and web UI work. Specialists for
-> Azure, Dynamics 365 and others follow; see the [roadmap](#roadmap).
+> **Status: early.** The schema, roles, specialists, command-line tool and web UI work. See the
+> [roadmap](#roadmap).
 
 ## Quick start
 
@@ -44,6 +44,7 @@ link it prints, so other pages in your browser can't use it. If you open it to y
 | `agent-team init [--profile <name>]`       | Create `team.json`, from a profile if given                        |
 | `agent-team validate`                      | Check `team.json`                                                  |
 | `agent-team apply [--dry-run] [--diff]`    | Show what will change, ask, then write the files Claude Code reads |
+| `agent-team doctor`                        | Check Node, Claude Code, generated files, MCP servers and secrets  |
 | `agent-team profile list`                  | Built-in profiles (`minimal`, `dev-team`, `consultancy`) and yours |
 | `agent-team profile save <name>`           | Save this project's team as a profile                              |
 | `agent-team profile show \| delete <name>` | Look at or remove a saved profile                                  |
@@ -80,7 +81,11 @@ it by hand, in which case it's left in place with a warning.
 | Presales  | sonnet        | Requirements, solution outlines, estimates, proposals       | Read, write docs, web        |
 | Sales     | haiku         | Account research, email drafts, pitch material; up to 10    | Read, write docs, web search |
 
-Prompts live in [`catalog/roles/`](catalog/roles). Each role can add its own instructions,
+Prompts live in [`catalog/roles/`](catalog/roles).
+
+**Specialists** cover services: Azure, Dynamics 365, Power Platform, Microsoft 365, AWS, Google
+Cloud, Salesforce, Stripe and GitHub, each with an optional MCP server, plus any service you
+describe yourself. See [docs/specialists.md](docs/specialists.md). Each role can add its own instructions,
 change its model or replace its tool list in `team.json`.
 
 Models are aliases (`opus`, `sonnet`, `haiku`, `inherit`) so they follow the latest model in each
@@ -129,7 +134,7 @@ rejects anything else, so `team.json` is safe to commit.
 1. ✅ Schema, role catalog, examples, tests
 2. ✅ CLI and generator: `init`, `validate`, `apply`, `profile`, `/team` command
 3. ✅ Local web UI: team, specialists, workflow, profiles, preview, apply
-4. Specialist catalog (Azure, Dynamics 365, AWS, …), custom specialists, MCP set-up, `agent-team doctor`
+4. ✅ Specialist catalog (Azure, Dynamics 365, AWS, …), custom specialists, MCP set-up, `agent-team doctor`
 5. Optional Agent SDK runner: layered teams (lead developer directs developers), cost limits, run log
 6. Docs and an npm release
 
