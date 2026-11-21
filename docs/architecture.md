@@ -6,7 +6,7 @@
 | --------------------- | ------- | ---------------------------------------------------------------------------- |
 | `packages/schema`     | done    | Zod schema for `team.json`, profiles and catalog entries; JSON Schema export |
 | `packages/cli`        | done    | `agent-team ui`, `validate`, `apply`, `init`, `profile`, `doctor`            |
-| `packages/web`        | phase 3 | Vite + React UI served by `agent-team ui`                                    |
+| `packages/web`        | done    | Vite + React UI served by `agent-team ui`                                    |
 | `packages/runner`     | phase 5 | Optional Agent SDK orchestrator                                              |
 | `catalog/roles`       | done    | One markdown file per role: frontmatter (model, tools) + prompt              |
 | `catalog/specialists` | phase 4 | Same format plus docs links and an optional MCP server                       |
@@ -53,6 +53,31 @@ Claude Code subagents can't start other subagents. So:
 
 Phase 5 adds an optional runner on the Claude Agent SDK, driven by the same `team.json`, for teams
 that need real layers, per-role cost limits or unattended runs.
+
+## Web UI
+
+`agent-team ui` starts a small `node:http` server that serves the built React app and a JSON API:
+
+| Endpoint                         | Does                                                   |
+| -------------------------------- | ------------------------------------------------------ |
+| `GET /api/state`                 | Project folder, current `team.json`, catalog, profiles |
+| `PUT /api/config`                | Validate and save `team.json`                          |
+| `POST /api/preview`              | Generate and return the plan with a diff per file      |
+| `POST /api/apply`                | Save `team.json` and write the files                   |
+| `GET/POST/DELETE /api/profiles…` | List, load, save and delete profiles                   |
+
+Security:
+
+- It binds to `127.0.0.1` by default.
+- A random token is printed in the link's `#fragment`, so it isn't sent in requests or logged. The
+  page keeps it in `sessionStorage` and sends it as a bearer token. Cross-site pages can't add that
+  header without a CORS preflight, which the server never approves.
+- Pages are served with a strict Content-Security-Policy (no inline scripts, no eval). Zod runs in
+  `jitless` mode in the browser for that reason.
+- Request bodies are capped at 1 MB, and only valid configs are ever written.
+
+The browser validates with the same schema package as the server, so errors show on the right tab
+as you type.
 
 ## Templates
 

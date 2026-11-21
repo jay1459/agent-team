@@ -9,13 +9,14 @@
   },
   "files": [
     "dist",
-    "catalog"
+    "catalog",
+    "web"
   ],
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli.js"
+    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli.js && node scripts/copy-assets.mjs"
   },
   "dependencies": {
     "@agent-team/schema": "*",

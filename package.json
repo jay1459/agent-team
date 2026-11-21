@@ -8,20 +8,26 @@
     "node": ">=22.12"
   },
   "workspaces": [
-    "packages/*"
+    "packages/schema",
+    "packages/web",
+    "packages/cli"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "npm run build -w @agent-team/schema && tsc -p packages/schema --noEmit && tsc -p packages/cli --noEmit",
-    "schemas": "npm run build -w @agent-team/schema && node packages/schema/scripts/export-json-schema.mjs"
+    "typecheck": "npm run build -w @agent-team/schema && tsc -p packages/schema --noEmit && tsc -p packages/cli --noEmit && tsc -p packages/web --noEmit",
+    "schemas": "npm run build -w @agent-team/schema && node packages/schema/scripts/export-json-schema.mjs",
+    "dev:ui": "npm run dev -w @agent-team/web",
+    "e2e": "npm run build && playwright test --trace off"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.65.1",
     "@types/node": "^22.19.0",
     "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.10.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.73.0",
