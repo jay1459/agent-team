@@ -41,6 +41,8 @@ cannot delegate to each other, so every hand-off goes through you.
 | `presales` | Presales consultant | sonnet | Bridges the customer and the build team. Use to shape requirements into a solution outline, scope and estimate, and to write proposals and demo scripts. |
 | `sales-1` | Sales 1 | haiku | Handles the commercial side. Use for account research, outreach and follow-up emails, pitch material and turning proposals into customer-ready messages. (Sales 1 of 2.) |
 | `sales-2` | Sales 2 | haiku | Handles the commercial side. Use for account research, outreach and follow-up emails, pitch material and turning proposals into customer-ready messages. (Sales 2 of 2.) |
+| `azure-specialist` | Azure specialist | sonnet | Microsoft Azure expert: picking and configuring services (App Service, Functions, Container Apps, AKS, SQL, Cosmos DB, Storage, Service Bus, Entra ID, Key Vault), networking, identity, cost, Bicep/Terraform and deployment pipelines. |
+| `dynamics365-specialist` | Dynamics 365 specialist | sonnet | Dynamics 365 and Dataverse expert: Sales, Customer Service and Field Service apps, tables and relationships, business rules, plug-ins, Power Automate flows, security roles, solutions and ALM, and integration through the Dataverse Web API. |
 | `twilio-specialist` | Twilio specialist | haiku | SMS and WhatsApp messaging via Twilio: sending, delivery receipts, opt-out handling and costs. |
 
 Hand work to an agent with the Agent tool, using its name in the table as the subagent type. Give

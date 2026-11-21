@@ -143,3 +143,33 @@ test("edits the JSON directly", async ({ page, startUi }) => {
   await expect(page.getByLabel("Project name")).toHaveValue("From JSON");
   await expect(page.locator('[data-role="architect"]').getByRole("checkbox").first()).toBeChecked();
 });
+
+test("turns on catalog specialists and their MCP servers", async ({ page, startUi }) => {
+  const ui = await startUi({
+    config: { version: 1, project: { name: "X" }, roles: { pm: { enabled: true } } },
+  });
+  await page.goto(ui.url);
+  await page.getByRole("tab", { name: "Specialists" }).click();
+
+  const azure = page.locator('[data-specialist="azure"]');
+  await azure.getByRole("checkbox").first().check();
+  await azure.getByLabel(/Connect its MCP server/).check();
+  await expect(azure.getByText("az login", { exact: false })).toBeVisible();
+
+  const github = page.locator('[data-specialist="github"]');
+  await github.getByRole("checkbox").first().check();
+  await github.getByLabel(/Connect its MCP server/).check();
+  await expect(github).toContainText("needs GITHUB_PERSONAL_ACCESS_TOKEN");
+
+  await page.getByRole("tab", { name: "Preview & apply" }).click();
+  await expect(page.getByText("azure-specialist", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Apply \d+ changes$/ }).click();
+  await page.getByRole("button", { name: "Yes, write them" }).click();
+  await expect(page.getByText(/Wrote \d+ file/)).toBeVisible();
+
+  const mcp = readJson(join(ui.projectDir, ".mcp.json"));
+  expect(Object.keys(mcp.mcpServers)).toEqual(["azure", "github"]);
+  expect(mcp.mcpServers.github.headers.Authorization).toBe(
+    "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}",
+  );
+});
