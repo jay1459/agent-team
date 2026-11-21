@@ -2,14 +2,14 @@
 
 ## Pieces
 
-| Package               | Status  | Job                                                                          |
-| --------------------- | ------- | ---------------------------------------------------------------------------- |
-| `packages/schema`     | done    | Zod schema for `team.json`, profiles and catalog entries; JSON Schema export |
-| `packages/cli`        | done    | `agent-team ui`, `validate`, `apply`, `init`, `profile`, `doctor`            |
-| `packages/web`        | done    | Vite + React UI served by `agent-team ui`                                    |
-| `packages/runner`     | phase 5 | Optional Agent SDK orchestrator                                              |
-| `catalog/roles`       | done    | One markdown file per role: frontmatter (model, tools) + prompt              |
-| `catalog/specialists` | done    | Same format plus docs links and an optional MCP server                       |
+| Package                | Status | Job                                                                          |
+| ---------------------- | ------ | ---------------------------------------------------------------------------- |
+| `packages/schema`      | done   | Zod schema for `team.json`, profiles and catalog entries; JSON Schema export |
+| `packages/cli`         | done   | `agent-team ui`, `validate`, `apply`, `init`, `profile`, `doctor`            |
+| `packages/web`         | done   | Vite + React UI served by `agent-team ui`                                    |
+| `packages/cli/src/run` | done   | `agent-team run`: optional Agent SDK orchestrator (see runner.md)            |
+| `catalog/roles`        | done   | One markdown file per role: frontmatter (model, tools) + prompt              |
+| `catalog/specialists`  | done   | Same format plus docs links and an optional MCP server                       |
 
 The schema package is the single source of truth. The UI uses it for live checking, the CLI uses
 it before generating anything, and `schemas/*.schema.json` is exported from it for editors. A test
@@ -51,8 +51,8 @@ Claude Code subagents can't start other subagents. So:
 - Every agent starts each task with no memory, so the PM passes the context it needs, and agents
   record their output in `team/`.
 
-Phase 5 adds an optional runner on the Claude Agent SDK, driven by the same `team.json`, for teams
-that need real layers, per-role cost limits or unattended runs.
+`agent-team run` (see [runner.md](runner.md)) runs the same `team.json` on the Claude Agent SDK,
+with an optional layered team, budgets and a run log.
 
 ## Web UI
 

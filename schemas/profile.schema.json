@@ -292,6 +292,39 @@
         ]
       }
     },
+    "runner": {
+      "default": {
+        "layered": false,
+        "permissionMode": "acceptEdits"
+      },
+      "type": "object",
+      "properties": {
+        "layered": {
+          "default": false,
+          "type": "boolean"
+        },
+        "maxBudgetUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "teamBudgetUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "permissionMode": {
+          "default": "acceptEdits",
+          "type": "string",
+          "enum": [
+            "default",
+            "acceptEdits",
+            "plan"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "workflow": {
       "default": {
         "humanApproval": [

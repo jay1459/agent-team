@@ -161,6 +161,29 @@ export const WorkflowSchema = z.object({
 export type Workflow = z.infer<typeof WorkflowSchema>;
 
 // ---------------------------------------------------------------------------
+// Runner (agent-team run, on the Claude Agent SDK)
+// ---------------------------------------------------------------------------
+
+const usd = z.number().positive().max(10_000);
+
+export const RunnerSchema = z
+  .object({
+    /**
+     * Give the lead developer their own developer team: the PM hands build work to the lead
+     * developer, who directs the developers. Needs both roles switched on.
+     */
+    layered: z.boolean().default(false),
+    /** Stop the PM's run once it has spent this much (USD). */
+    maxBudgetUsd: usd.optional(),
+    /** Cap for each hand-off to the lead developer's team in layered mode (USD). */
+    teamBudgetUsd: usd.optional(),
+    /** "acceptEdits" lets agents edit files without asking; anything else still asks. */
+    permissionMode: z.enum(["default", "acceptEdits", "plan"]).default("acceptEdits"),
+  })
+  .strict();
+export type Runner = z.infer<typeof RunnerSchema>;
+
+// ---------------------------------------------------------------------------
 // Team body (shared by team.json and profiles)
 // ---------------------------------------------------------------------------
 
@@ -169,6 +192,7 @@ const teamBody = {
   defaults: z.object({ model: ModelSchema.optional() }).strict().default({}),
   roles: z.partialRecord(RoleIdSchema, RoleConfigSchema),
   specialists: z.array(SpecialistConfigSchema).default([]),
+  runner: RunnerSchema.default({ layered: false, permissionMode: "acceptEdits" }),
   workflow: WorkflowSchema.default({
     humanApproval: ["architecture", "merge"],
     workspace: "team/",
@@ -178,6 +202,7 @@ const teamBody = {
 type TeamBody = {
   roles: Partial<Record<RoleId, RoleConfig>>;
   specialists: SpecialistConfig[];
+  runner: Runner;
 };
 
 function checkTeamBody(team: TeamBody, ctx: z.RefinementCtx) {
@@ -196,6 +221,13 @@ function checkTeamBody(team: TeamBody, ctx: z.RefinementCtx) {
         message: `Only ${TEAM_ROLES.join(" and ")} can have more than one agent`,
       });
     }
+  }
+  if (team.runner.layered && !(team.roles["lead-dev"]?.enabled && team.roles.developer?.enabled)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["runner", "layered"],
+      message: "A layered team needs both the lead developer and developers switched on",
+    });
   }
   const seen = new Set<string>();
   team.specialists.forEach((s, i) => {
@@ -361,7 +393,7 @@ export function teamConfigFromProfile(
   profile: Profile,
   project: TeamConfig["project"],
 ): TeamConfig {
-  const { name, defaults, roles, specialists, workflow } = profile;
+  const { name, defaults, roles, specialists, workflow, runner } = profile;
   return structuredClone({
     version: CONFIG_VERSION,
     extends: name,
@@ -370,6 +402,7 @@ export function teamConfigFromProfile(
     roles,
     specialists,
     workflow,
+    runner,
     secrets: {},
   });
 }
@@ -380,7 +413,7 @@ export function profileFromTeamConfig(
   name: string,
   description?: string,
 ): Profile {
-  const { defaults, roles, specialists, workflow } = config;
+  const { defaults, roles, specialists, workflow, runner } = config;
   return structuredClone({
     version: CONFIG_VERSION,
     name,
@@ -389,6 +422,7 @@ export function profileFromTeamConfig(
     roles,
     specialists,
     workflow,
+    runner,
   });
 }
 

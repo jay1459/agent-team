@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, realpathSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -12,6 +12,9 @@ import { applyPlan, diffChange, pendingChanges, planApply, summarisePlan } from 
 import { deleteProfile, listProfiles, loadProfile, saveProfile } from "./profiles.js";
 import { isLoopback, startUiServer } from "./server.js";
 import { defaultDeps, formatChecks, runDoctor, type DoctorDeps } from "./doctor.js";
+import { MissingEnvError } from "./run/mcp-config.js";
+import { listRuns, type RunEvent } from "./run/run-log.js";
+import { loadSdk, RunError, runTeam, type Sdk } from "./run/runner.js";
 
 export const DEFAULT_UI_PORT = 7420;
 
@@ -39,6 +42,11 @@ Usage
                               Save this project's team as a reusable profile
   agent-team profile delete <name>
   agent-team doctor           Check this project is ready to run
+  agent-team run "<goal>" [--budget <usd>] [--layered] [--yes]
+                              Run the team unattended on the Claude Agent SDK
+  agent-team run --continue "<reply>"
+                              Continue the latest run (e.g. answer the PM's question)
+  agent-team runs             List runs and what they cost
   agent-team ui [--host <addr>] [--port <n>]
                               Edit the team in your browser (default http://127.0.0.1:7420)
 
@@ -71,6 +79,11 @@ function parse(argv: string[]) {
       "dry-run": { type: "boolean" },
       diff: { type: "boolean" },
       host: { type: "string" },
+      budget: { type: "string" },
+      layered: { type: "boolean" },
+      flat: { type: "boolean" },
+      continue: { type: "boolean" },
+      resume: { type: "string" },
       port: { type: "string" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -230,6 +243,119 @@ async function cmdUi(args: Args, io: Io, catalog: Catalog): Promise<number> {
 }
 
 /** Swapped out in tests. */
+export const runDeps: { sdk: () => Promise<Sdk>; env: () => Record<string, string | undefined> } = {
+  sdk: loadSdk,
+  env: () => process.env,
+};
+
+function formatEvent(e: RunEvent): string | null {
+  const money = (n: number) => `$${n.toFixed(2)}`;
+  switch (e.kind) {
+    case "start":
+      return `Team: ${e.agents.length ? `pm + ${e.agents.join(", ")}` : "pm"}${e.layered ? " (layered)" : ""}${e.maxBudgetUsd ? ` · budget ${money(e.maxBudgetUsd)}` : ""}`;
+    case "text":
+      return `\n[${e.agent}] ${e.text}`;
+    case "tool":
+      return `[${e.agent}] → ${e.tool}: ${e.summary}`;
+    case "delegate":
+      return `\n[pm] ⇒ lead-dev team: ${e.task}`;
+    case "delegate-done":
+      return `[lead-dev] team finished (${e.ok ? "ok" : "stopped"}, ${money(e.costUsd)}, ${e.turns} turns)`;
+    case "denied":
+      return `[${e.agent}] ✗ not allowed: ${e.tool} ${e.reason}`;
+    case "error":
+      return `Error: ${e.message}`;
+    default:
+      return null;
+  }
+}
+
+async function cmdRun(args: Args, io: Io, catalog: Catalog): Promise<number> {
+  const { projectDir, configPath } = paths(args, io);
+  const config = loadConfig(configPath, io);
+  if (!config) return 1;
+  const goal = args.positionals.slice(1).join(" ").trim();
+  const workspaceDir = join(projectDir, config.workflow.workspace);
+
+  let resume = args.values.resume;
+  if (args.values.continue) {
+    resume = listRuns(workspaceDir).find((r) => r.sessionId)?.sessionId;
+    if (!resume) {
+      io.err("There's no earlier run to continue.");
+      return 1;
+    }
+  }
+  if (!goal)
+    throw new UsageError(
+      resume
+        ? 'Say what to tell the team, e.g. agent-team run --continue "Approved"'
+        : 'Usage: agent-team run "<goal>"',
+    );
+  const budget = args.values.budget === undefined ? undefined : Number(args.values.budget);
+  if (budget !== undefined && !(budget > 0))
+    throw new UsageError(`Not a valid budget: ${args.values.budget}`);
+  if (args.values.layered && args.values.flat)
+    throw new UsageError("Choose --layered or --flat, not both.");
+  const layered = args.values.layered ? true : args.values.flat ? false : undefined;
+
+  const abortController = new AbortController();
+  const stop = () => abortController.abort();
+  process.once("SIGINT", stop);
+  try {
+    const outcome = await runTeam({
+      projectDir,
+      config,
+      catalog,
+      goal,
+      ...(resume ? { resume } : {}),
+      ...(layered === undefined ? {} : { layered }),
+      ...(budget === undefined ? {} : { maxBudgetUsd: budget }),
+      approveAll: args.values.yes ?? false,
+      env: runDeps.env(),
+      ask: (q) => (io.isTTY ? io.confirm(q) : Promise.resolve(false)),
+      onEvent: (e) => {
+        const line = formatEvent(e);
+        if (line) io.out(line);
+      },
+      sdk: await runDeps.sdk(),
+      abortController,
+    });
+    const r = outcome.result;
+    if (r) {
+      io.out(
+        `\n${r.ok ? "Finished" : `Stopped (${r.subtype})`}: $${(r.costUsd + r.teamCostUsd).toFixed(2)}${r.teamCostUsd ? ` (PM $${r.costUsd.toFixed(2)} + team $${r.teamCostUsd.toFixed(2)})` : ""}, ${r.turns} turns.`,
+      );
+      if (r.text) io.out(`\n${r.text}`);
+    }
+    io.out(
+      `\nLog: ${relative(projectDir, outcome.log.file)}\nReply or carry on with: agent-team run --continue "<message>"`,
+    );
+    return outcome.ok ? 0 : 1;
+  } catch (err) {
+    if (err instanceof RunError || err instanceof MissingEnvError) {
+      io.err(err.message);
+      return 1;
+    }
+    throw err;
+  } finally {
+    process.off("SIGINT", stop);
+  }
+}
+
+async function cmdRuns(args: Args, io: Io): Promise<number> {
+  const { projectDir, configPath } = paths(args, io);
+  const config = loadConfig(configPath, io);
+  if (!config) return 1;
+  const runs = listRuns(join(projectDir, config.workflow.workspace));
+  if (!runs.length) io.out('No runs yet. Start one with agent-team run "<goal>".');
+  for (const r of runs) {
+    const cost = r.costUsd === undefined ? "" : `$${r.costUsd.toFixed(2)}`;
+    io.out(`${r.id}  ${r.status.padEnd(8)} ${cost.padStart(7)}  ${r.goal}`);
+  }
+  return 0;
+}
+
+/** Swapped out in tests. */
 export const doctorDeps: { get: () => DoctorDeps } = { get: defaultDeps };
 
 async function cmdDoctor(args: Args, io: Io, catalog: Catalog): Promise<number> {
@@ -251,6 +377,8 @@ async function cmdDoctor(args: Args, io: Io, catalog: Catalog): Promise<number> 
 const COMMANDS: Record<string, (args: Args, io: Io, catalog: Catalog) => Promise<number>> = {
   ui: cmdUi,
   doctor: cmdDoctor,
+  run: cmdRun,
+  runs: cmdRuns,
   init: cmdInit,
   validate: cmdValidate,
   apply: cmdApply,

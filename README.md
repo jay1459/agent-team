@@ -45,6 +45,8 @@ link it prints, so other pages in your browser can't use it. If you open it to y
 | `agent-team validate`                      | Check `team.json`                                                  |
 | `agent-team apply [--dry-run] [--diff]`    | Show what will change, ask, then write the files Claude Code reads |
 | `agent-team doctor`                        | Check Node, Claude Code, generated files, MCP servers and secrets  |
+| `agent-team run "<goal>"`                  | Run the team unattended on the Agent SDK ([docs](docs/runner.md))  |
+| `agent-team runs`                          | List runs and their cost                                           |
 | `agent-team profile list`                  | Built-in profiles (`minimal`, `dev-team`, `consultancy`) and yours |
 | `agent-team profile save <name>`           | Save this project's team as a profile                              |
 | `agent-team profile show \| delete <name>` | Look at or remove a saved profile                                  |
@@ -68,7 +70,8 @@ it by hand, in which case it's left in place with a warning.
   Sales and presales can't run commands or edit code; developers can.
 - Subagents can't start other subagents, so **all hand-offs go through the PM.** The lead
   developer writes tasks for the developers and the PM assigns them. See
-  [docs/architecture.md](docs/architecture.md).
+  [docs/architecture.md](docs/architecture.md). For a real hierarchy, `agent-team run --layered`
+  gives the lead developer their own team ([docs/runner.md](docs/runner.md)).
 
 ## Roles
 
@@ -135,7 +138,7 @@ rejects anything else, so `team.json` is safe to commit.
 2. ✅ CLI and generator: `init`, `validate`, `apply`, `profile`, `/team` command
 3. ✅ Local web UI: team, specialists, workflow, profiles, preview, apply
 4. ✅ Specialist catalog (Azure, Dynamics 365, AWS, …), custom specialists, MCP set-up, `agent-team doctor`
-5. Optional Agent SDK runner: layered teams (lead developer directs developers), cost limits, run log
+5. ✅ Optional Agent SDK runner: layered teams (lead developer directs developers), cost limits, run log
 6. Docs and an npm release
 
 ## Development

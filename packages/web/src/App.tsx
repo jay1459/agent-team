@@ -4,6 +4,7 @@ import { api, ApiError, takeToken, type UiState } from "./api.ts";
 import { JsonTab } from "./components/JsonTab.tsx";
 import { PreviewTab } from "./components/PreviewTab.tsx";
 import { ProfilesTab } from "./components/ProfilesTab.tsx";
+import { RunsTab } from "./components/RunsTab.tsx";
 import { SpecialistsTab } from "./components/SpecialistsTab.tsx";
 import { TeamTab } from "./components/TeamTab.tsx";
 import { Welcome } from "./components/Welcome.tsx";
@@ -12,14 +13,15 @@ import { errorsUnder } from "./util.ts";
 
 export type Edit = (change: (draft: TeamConfigInput) => void) => void;
 
-type Tab = "team" | "specialists" | "workflow" | "profiles" | "preview" | "json";
+type Tab = "team" | "specialists" | "workflow" | "profiles" | "preview" | "runs" | "json";
 
 const TABS: { id: Tab; label: string; paths: string[] }[] = [
   { id: "team", label: "Team", paths: ["project", "defaults", "roles"] },
   { id: "specialists", label: "Specialists", paths: ["specialists"] },
-  { id: "workflow", label: "Workflow", paths: ["workflow", "secrets"] },
+  { id: "workflow", label: "Workflow", paths: ["workflow", "secrets", "runner"] },
   { id: "profiles", label: "Profiles", paths: ["extends"] },
   { id: "preview", label: "Preview & apply", paths: [] },
+  { id: "runs", label: "Runs", paths: [] },
   { id: "json", label: "JSON", paths: ["(root)", "version", "$schema"] },
 ];
 
@@ -241,6 +243,7 @@ export function App() {
             }}
           />
         )}
+        {tab === "runs" && <RunsTab />}
         {tab === "json" && <JsonTab draft={draft} setDraft={setDraft} errors={errors} />}
       </main>
     </div>

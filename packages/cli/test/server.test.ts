@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startUiServer, type UiServer } from "../src/server.js";
@@ -173,6 +173,35 @@ describe("UI server", () => {
     expect((await call("DELETE", "/api/profiles/my-team")).status).toBe(200);
     expect((await call("DELETE", "/api/profiles/consultancy")).status).toBe(409);
     expect((await call("GET", "/api/profiles/my-team")).status).toBe(409);
+  });
+
+  it("lists runs and returns a run's log", async () => {
+    expect((await call("GET", "/api/runs")).body).toEqual([]);
+    mkdirSync(join(project, "team/runs"), { recursive: true });
+    const id = "2026-11-21T10-00-00-000Z";
+    writeFileSync(
+      join(project, "team/runs", `${id}.jsonl`),
+      [
+        {
+          kind: "start",
+          at: "2026-11-21T10:00:00.000Z",
+          goal: "Ship it",
+          layered: false,
+          agents: [],
+        },
+        { kind: "text", at: "x", agent: "pm", text: "On it" },
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n"),
+    );
+    const runs = await call("GET", "/api/runs");
+    expect(runs.body).toEqual([
+      { id, goal: "Ship it", startedAt: "2026-11-21T10:00:00.000Z", status: "running" },
+    ]);
+    const run = await call("GET", `/api/runs/${id}`);
+    expect(run.body).toHaveLength(2);
+    expect((await call("GET", "/api/runs/2026-01-01T00-00-00-000Z")).status).toBe(404);
+    expect((await call("GET", "/api/runs/..%2f..%2fteam")).status).toBe(404);
   });
 
   it("rejects non-JSON and oversized bodies", async () => {

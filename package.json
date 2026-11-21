@@ -20,7 +20,8 @@
     "typecheck": "npm run build -w @agent-team/schema && tsc -p packages/schema --noEmit && tsc -p packages/cli --noEmit && tsc -p packages/web --noEmit",
     "schemas": "npm run build -w @agent-team/schema && node packages/schema/scripts/export-json-schema.mjs",
     "dev:ui": "npm run dev -w @agent-team/web",
-    "e2e": "npm run build && playwright test --trace off"
+    "e2e": "npm run build && playwright test --trace off",
+    "smoke:run": "npm run build && node scripts/smoke-run.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
