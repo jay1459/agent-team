@@ -1,0 +1,25 @@
+{
+  "name": "@jay1459/agent-team",
+  "version": "0.1.0",
+  "description": "Configure a PM-led team of Claude Code agents from a local web UI",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "agent-team": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "catalog"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli.js"
+  },
+  "dependencies": {
+    "@agent-team/schema": "*",
+    "diff": "^9.0.0",
+    "yaml": "^2.9.1"
+  }
+}

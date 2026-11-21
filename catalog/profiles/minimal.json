@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jay1459/agent-team/main/schemas/profile.schema.json",
+  "version": 1,
+  "name": "minimal",
+  "description": "A PM and one developer.",
+  "roles": {
+    "pm": { "enabled": true, "model": "opus" },
+    "developer": { "enabled": true, "model": "sonnet" }
+  }
+}

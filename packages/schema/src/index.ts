@@ -55,11 +55,38 @@ export const ToolSchema = z.union([
     .regex(/^mcp__[A-Za-z0-9_-]+(__[A-Za-z0-9_*-]+)?$/, "MCP tools look like mcp__server__tool"),
 ]);
 
-export const McpServerSchema = z.object({
-  command: z.string().min(1),
-  args: z.array(z.string()).default([]),
-  env: z.record(z.string(), EnvRefSchema).default({}),
-});
+const envVarName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "Not a valid variable name");
+
+/** An MCP server run as a local command. */
+export const StdioMcpServerSchema = z
+  .object({
+    type: z.literal("stdio").default("stdio"),
+    command: z.string().min(1),
+    args: z.array(z.string()).default([]),
+    env: z.record(envVarName, EnvRefSchema).default({}),
+  })
+  .strict();
+
+/** A remote MCP server. Header values may only hold environment references: "Bearer {env:TOKEN}". */
+export const HttpMcpServerSchema = z
+  .object({
+    type: z.literal("http"),
+    url: z.url({ protocol: /^https?$/ }),
+    headers: z
+      .record(
+        z.string().regex(/^[A-Za-z0-9-]+$/),
+        z
+          .string()
+          .regex(
+            /^([A-Za-z]+ )?\{env:[A-Za-z_][A-Za-z0-9_]*\}$/,
+            'Header values must be environment references like "Bearer {env:MY_TOKEN}"',
+          ),
+      )
+      .default({}),
+  })
+  .strict();
+
+export const McpServerSchema = z.union([HttpMcpServerSchema, StdioMcpServerSchema]);
 export type McpServer = z.infer<typeof McpServerSchema>;
 
 // ---------------------------------------------------------------------------
@@ -138,7 +165,8 @@ export type Workflow = z.infer<typeof WorkflowSchema>;
 // ---------------------------------------------------------------------------
 
 const teamBody = {
-  defaults: z.object({ model: ModelSchema.default("sonnet") }).default({ model: "sonnet" }),
+  /** Overrides the catalog's default model for every agent that doesn't set its own. */
+  defaults: z.object({ model: ModelSchema.optional() }).strict().default({}),
   roles: z.partialRecord(RoleIdSchema, RoleConfigSchema),
   specialists: z.array(SpecialistConfigSchema).default([]),
   workflow: WorkflowSchema.default({
@@ -260,6 +288,31 @@ export const RoleDefinitionSchema = z
   });
 export type RoleDefinition = z.infer<typeof RoleDefinitionSchema>;
 
+/** catalog/specialists/*.md: a service the team can bring an expert in for. */
+export const SpecialistDefinitionSchema = z
+  .object({
+    id: slug,
+    title: z.string().min(1).max(80),
+    /** Shown to the PM: what this specialist knows and when to hand it work. */
+    description: z.string().min(20).max(1_000),
+    defaultModel: ModelSchema,
+    tools: z.array(ToolSchema),
+    docs: z.array(z.url()).default([]),
+    /** Optional MCP server, added to .mcp.json when the project turns "mcp" on. */
+    mcp: z
+      .object({
+        name: slug,
+        server: McpServerSchema,
+        /** Environment variables the server needs; checked by `agent-team doctor`. */
+        requires: z.array(envVarName).default([]),
+        note: z.string().optional(),
+      })
+      .optional(),
+    prompt: z.string().min(50),
+  })
+  .strict();
+export type SpecialistDefinition = z.infer<typeof SpecialistDefinitionSchema>;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -288,6 +341,10 @@ export function parseProfile(input: unknown): ParseResult<Profile> {
 
 export function parseRoleDefinition(input: unknown): ParseResult<RoleDefinition> {
   return toResult(RoleDefinitionSchema.safeParse(input));
+}
+
+export function parseSpecialistDefinition(input: unknown): ParseResult<SpecialistDefinition> {
+  return toResult(SpecialistDefinitionSchema.safeParse(input));
 }
 
 /** The model an agent runs on: its own setting, else the team default, else the catalog default. */

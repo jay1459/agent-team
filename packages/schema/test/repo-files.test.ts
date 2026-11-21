@@ -3,7 +3,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
-import { jsonSchemas, parseRoleDefinition, parseTeamConfig, ROLE_IDS } from "../src/index.js";
+import {
+  jsonSchemas,
+  parseProfile,
+  parseRoleDefinition,
+  parseSpecialistDefinition,
+  parseTeamConfig,
+  ROLE_IDS,
+} from "../src/index.js";
 
 const root = join(import.meta.dirname, "../../..");
 const KNOWN_PLACEHOLDERS = new Set(["project", "workspace", "approvalGates"]);
@@ -32,6 +39,33 @@ describe("role catalog", () => {
 
       const placeholders = [...role.prompt.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
       for (const p of placeholders) expect(KNOWN_PLACEHOLDERS, `{{${p}}}`).toContain(p);
+    });
+  }
+});
+
+describe("specialist catalog", () => {
+  const dir = join(root, "catalog/specialists");
+  const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
+  if (!files.length) it.todo("has specialists");
+  for (const file of files) {
+    it(`${file} is valid`, () => {
+      const spec = readRoleFile(join(dir, file));
+      const result = parseSpecialistDefinition(spec);
+      expect(result.ok ? [] : result.errors).toEqual([]);
+      expect(spec.id).toBe(basename(file, ".md"));
+      const placeholders = [...spec.prompt.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
+      for (const p of placeholders) expect(KNOWN_PLACEHOLDERS, `{{${p}}}`).toContain(p);
+    });
+  }
+});
+
+describe("built-in profiles", () => {
+  const dir = join(root, "catalog/profiles");
+  for (const file of readdirSync(dir)) {
+    it(`${file} is valid`, () => {
+      const result = parseProfile(JSON.parse(readFileSync(join(dir, file), "utf8")));
+      expect(result.ok ? [] : result.errors).toEqual([]);
+      if (result.ok) expect(result.value.name).toBe(basename(file, ".json"));
     });
   }
 });
