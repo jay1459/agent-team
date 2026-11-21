@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+# Local-only overrides (may hold machine-specific paths); team.json itself is safe to commit
+team.local.json
+.agent-team/
