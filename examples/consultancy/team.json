@@ -1,0 +1,43 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jay1459/agent-team/main/schemas/team.schema.json",
+  "version": 1,
+  "extends": "consultancy",
+  "project": {
+    "name": "Contoso field service",
+    "summary": "Dynamics 365 Field Service roll-out with an Azure integration layer and a customer portal."
+  },
+  "defaults": { "model": "sonnet" },
+  "roles": {
+    "pm": { "enabled": true, "model": "opus" },
+    "architect": { "enabled": true, "model": "opus" },
+    "lead-dev": { "enabled": true, "model": "sonnet" },
+    "developer": { "enabled": true, "model": "sonnet", "count": 3 },
+    "presales": { "enabled": true, "model": "sonnet" },
+    "sales": {
+      "enabled": true,
+      "model": "haiku",
+      "count": 2,
+      "promptAppend": "Write in British English and keep emails under 150 words."
+    }
+  },
+  "specialists": [
+    { "id": "azure", "enabled": true, "model": "sonnet", "mcp": true },
+    { "id": "dynamics365", "enabled": true, "model": "sonnet" },
+    {
+      "id": "custom:twilio",
+      "enabled": true,
+      "model": "haiku",
+      "title": "Twilio",
+      "description": "SMS and WhatsApp messaging via Twilio: sending, delivery receipts, opt-out handling and costs.",
+      "docs": ["https://www.twilio.com/docs/messaging"]
+    }
+  ],
+  "workflow": {
+    "humanApproval": ["requirements", "architecture", "estimate", "customer-facing-docs", "merge"],
+    "workspace": "team/"
+  },
+  "secrets": {
+    "AZURE_SUBSCRIPTION_ID": "env:AZURE_SUBSCRIPTION_ID",
+    "DATAVERSE_URL": "env:DATAVERSE_URL"
+  }
+}

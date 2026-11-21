@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jay1459/agent-team/main/schemas/team.schema.json",
+  "version": 1,
+  "project": {
+    "name": "My app",
+    "summary": "A small project run by a PM and one developer."
+  },
+  "roles": {
+    "pm": { "enabled": true, "model": "opus" },
+    "developer": { "enabled": true, "model": "sonnet", "count": 1 }
+  }
+}
