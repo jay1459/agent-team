@@ -1,8 +1,28 @@
 {
   "name": "@jay1459/agent-team",
   "version": "0.1.0",
-  "description": "Configure a PM-led team of Claude Code agents from a local web UI",
+  "description": "Run a software project with a team of Claude Code agents led by a PM, configured from a local web UI",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "agents",
+    "multi-agent",
+    "ai",
+    "project-manager",
+    "mcp",
+    "agent-sdk"
+  ],
+  "homepage": "https://github.com/jay1459/agent-team#readme",
+  "bugs": {
+    "url": "https://github.com/jay1459/agent-team/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jay1459/agent-team.git",
+    "directory": "packages/cli"
+  },
   "license": "MIT",
+  "author": "Joe Hardy",
   "type": "module",
   "bin": {
     "agent-team": "./dist/cli.js"
@@ -10,16 +30,17 @@
   "files": [
     "dist",
     "catalog",
-    "web"
+    "web",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli.js && node scripts/copy-assets.mjs"
+    "build": "tsc -p tsconfig.build.json --noEmit && rm -rf dist && node scripts/bundle.mjs && node scripts/copy-assets.mjs"
   },
   "dependencies": {
-    "@agent-team/schema": "*",
     "diff": "^9.0.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
@@ -33,6 +54,12 @@
     }
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.330"
+    "@anthropic-ai/claude-agent-sdk": "^0.3.330",
+    "esbuild": "^0.28.2",
+    "@agent-team/schema": "*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

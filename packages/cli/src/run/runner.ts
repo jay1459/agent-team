@@ -36,7 +36,7 @@ export async function loadSdk(): Promise<Sdk> {
   } catch (err) {
     if ((err as { code?: string }).code === "ERR_MODULE_NOT_FOUND") {
       throw new RunError(
-        `agent-team run needs the Claude Agent SDK. Install it next to agent-team:\n  npm install -g ${SDK_PACKAGE}\nor, with npx:\n  npx -p @jay1459/agent-team -p ${SDK_PACKAGE} agent-team run "<goal>"`,
+        `agent-team run needs the Claude Agent SDK, installed next to agent-team:\n  npm install -g ${SDK_PACKAGE}     (if agent-team is installed globally)\n  npm install ${SDK_PACKAGE}        (if it's installed in this project)\nor, with npx:\n  npx -p @jay1459/agent-team -p ${SDK_PACKAGE} agent-team run "<goal>"`,
       );
     }
     throw err;
