@@ -125,8 +125,8 @@ export const SpecialistConfigSchema = z.object({
   promptAppend: z.string().max(20_000).optional(),
   tools: z.array(ToolSchema).optional(),
   /** Custom specialists only: what it knows and when the PM should use it. */
-  title: z.string().min(1).max(80).optional(),
-  description: z.string().min(1).max(1_000).optional(),
+  title: z.string().trim().min(1, "Give it a name").max(80).optional(),
+  description: z.string().trim().min(1, "Say what this specialist knows").max(1_000).optional(),
   docs: z.array(z.url()).optional(),
   /** Wire up the catalog's MCP server (catalog specialists) or this one (custom). */
   mcp: z.union([z.boolean(), McpServerSchema]).optional(),
@@ -208,7 +208,7 @@ function checkTeamBody(team: TeamBody, ctx: z.RefinementCtx) {
     }
     seen.add(s.id);
     const custom = s.id.startsWith("custom:");
-    if (custom && (!s.title || !s.description)) {
+    if (custom && (s.title === undefined || s.description === undefined)) {
       ctx.addIssue({
         code: "custom",
         path: ["specialists", i],
@@ -236,7 +236,7 @@ export const TeamConfigSchema = z
     /** Name of the profile this config was created from, if any. */
     extends: slug.optional(),
     project: z.object({
-      name: z.string().min(1).max(120),
+      name: z.string().trim().min(1, "Give the project a name").max(120),
       summary: z.string().max(5_000).optional(),
     }),
     ...teamBody,

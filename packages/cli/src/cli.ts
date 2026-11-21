@@ -10,6 +10,9 @@ import { CONFIG_FILE, readConfigFile, writeConfigFile } from "./config-file.js";
 import { generate } from "./generate.js";
 import { applyPlan, diffChange, pendingChanges, planApply, summarisePlan } from "./plan.js";
 import { deleteProfile, listProfiles, loadProfile, saveProfile } from "./profiles.js";
+import { isLoopback, startUiServer } from "./server.js";
+
+export const DEFAULT_UI_PORT = 7420;
 
 export type Io = {
   out: (text: string) => void;
@@ -34,6 +37,8 @@ Usage
   agent-team profile save <name> [--description <text>] [--force]
                               Save this project's team as a reusable profile
   agent-team profile delete <name>
+  agent-team ui [--host <addr>] [--port <n>]
+                              Edit the team in your browser (default http://127.0.0.1:7420)
 
 Options
   -C, --dir <path>     Project folder (default: current folder)
@@ -188,7 +193,42 @@ async function cmdProfile(args: Args, io: Io, catalog: Catalog): Promise<number>
   }
 }
 
+async function cmdUi(args: Args, io: Io, catalog: Catalog): Promise<number> {
+  const { projectDir, configPath } = paths(args, io);
+  const host = args.values.host ?? "127.0.0.1";
+  const port = Number(args.values.port ?? DEFAULT_UI_PORT);
+  if (!Number.isInteger(port) || port < 0 || port > 65535)
+    throw new UsageError(`Not a valid port: ${args.values.port}`);
+
+  const ui = await startUiServer({
+    projectDir,
+    configPath,
+    catalog,
+    host,
+    port,
+    version: version(),
+  });
+  io.out(`agent-team UI for ${projectDir}\n\n  Open: ${ui.url}\n`);
+  if (!isLoopback(host)) {
+    io.err(
+      "! Listening beyond this machine. Anyone on the network who gets the link (it holds the access token) can change this project's agent files.",
+    );
+  }
+  io.out("Press Ctrl+C to stop.");
+  await new Promise<void>((done) => {
+    const stop = () => {
+      process.off("SIGINT", stop);
+      process.off("SIGTERM", stop);
+      void ui.close().then(done);
+    };
+    process.on("SIGINT", stop);
+    process.on("SIGTERM", stop);
+  });
+  return 0;
+}
+
 const COMMANDS: Record<string, (args: Args, io: Io, catalog: Catalog) => Promise<number>> = {
+  ui: cmdUi,
   init: cmdInit,
   validate: cmdValidate,
   apply: cmdApply,

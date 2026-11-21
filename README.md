@@ -8,8 +8,8 @@ developers, presales, sales), which model each one uses, and which specialists t
 Claude Code already understands, so you then just run `claude` in your project and type
 `/team <goal>`.
 
-> **Status: early.** The schema, role catalog and command-line tool work. The web UI follows; see
-> the [roadmap](#roadmap).
+> **Status: early.** The schema, role catalog, command-line tool and web UI work. Specialists for
+> Azure, Dynamics 365 and others follow; see the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -22,6 +22,22 @@ node ~/agent-team/packages/cli/dist/cli.js init --profile dev-team   # writes te
 node ~/agent-team/packages/cli/dist/cli.js apply                     # shows the plan, asks, writes
 claude                                                               # then: /team add a login page
 ```
+
+Or set the team up in your browser:
+
+```sh
+node ~/agent-team/packages/cli/dist/cli.js ui -C ~/my-project
+# agent-team UI for /home/you/my-project
+#   Open: http://127.0.0.1:7420/#token=…
+```
+
+The UI has tabs for the team (roles, models, counts, tools, extra instructions), specialists,
+workflow (approval gates, workspace, secrets), profiles, a preview of every file that will change,
+and the raw JSON. It checks the config as you type and won't save or apply anything invalid.
+
+The UI only listens on 127.0.0.1 unless you pass `--host`. Every API call needs the token in the
+link it prints, so other pages in your browser can't use it. If you open it to your network
+(`--host 0.0.0.0`), anyone with the link can change the project's agent files.
 
 | Command                                    | What it does                                                       |
 | ------------------------------------------ | ------------------------------------------------------------------ |
@@ -112,7 +128,7 @@ rejects anything else, so `team.json` is safe to commit.
 
 1. ✅ Schema, role catalog, examples, tests
 2. ✅ CLI and generator: `init`, `validate`, `apply`, `profile`, `/team` command
-3. Local web UI: team, specialists, workflow, profiles, preview, apply
+3. ✅ Local web UI: team, specialists, workflow, profiles, preview, apply
 4. Specialist catalog (Azure, Dynamics 365, AWS, …), custom specialists, MCP set-up, `agent-team doctor`
 5. Optional Agent SDK runner: layered teams (lead developer directs developers), cost limits, run log
 6. Docs and an npm release
@@ -124,6 +140,8 @@ Needs Node 22.12 or later.
 ```sh
 npm install
 npm test          # unit tests, no API calls
+npm run e2e       # builds, then drives the web UI in Chromium (npx playwright install chromium first)
+npm run dev:ui    # Vite dev server; run `agent-team ui --port 7420` alongside for the API
 npm run lint      # ESLint + Prettier
 npm run schemas   # regenerate schemas/*.schema.json after changing the schema
 ```

@@ -4,3 +4,5 @@ coverage
 package-lock.json
 schemas/*.json
 **/__snapshots__
+packages/cli/web
+packages/cli/catalog
