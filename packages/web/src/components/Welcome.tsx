@@ -5,11 +5,13 @@ import { Field } from "./fields.tsx";
 export function Welcome({
   state,
   onStart,
+  onChangeProject,
 }: {
   state: UiState;
   onStart: (profile: string, project: string) => Promise<void>;
+  onChangeProject: () => void;
 }) {
-  const folder = state.projectDir.split(/[\\/]/).filter(Boolean).pop() ?? "My project";
+  const folder = (state.projectDir ?? "").split(/[\\/]/).filter(Boolean).pop() ?? "My project";
   const [project, setProject] = useState(folder);
   const [profile, setProfile] = useState(
     state.profiles.find((p) => p.name === "dev-team")?.name ?? state.profiles[0]?.name ?? "",
@@ -20,7 +22,10 @@ export function Welcome({
       <h1>agent-team</h1>
       <p>
         There's no <code>team.json</code> in <code>{state.projectDir}</code> yet. Pick a starting
-        team; you can change everything afterwards.
+        team; you can change everything afterwards.{" "}
+        <button className="link" onClick={onChangeProject}>
+          Use a different repository
+        </button>
       </p>
       <form
         className="panel"

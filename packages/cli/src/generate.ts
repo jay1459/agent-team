@@ -1,6 +1,7 @@
 import {
   APPROVAL_GATES,
   resolveModel,
+  PM_DECIDES,
   TEAM_ROLES,
   type McpServer,
   type Model,
@@ -151,6 +152,13 @@ export function toMcpJson(server: McpServer): Record<string, unknown> {
   };
 }
 
+function repositorySection(config: TeamConfig): string {
+  const remote = config.project.repository
+    ? ` Its remote is \`${config.project.repository}\`.`
+    : "";
+  return `\n\n## Repository\n\nThe team's work lives in this project's git repository.${remote} Have agents work on branches, and only merge or push when the approval gates allow it.`;
+}
+
 export function generate(config: TeamConfig, catalog: Catalog): Generated {
   const warnings: string[] = [];
   const ws = workspaceDir(config);
@@ -175,7 +183,9 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
     const def = catalog.roles.get(id)!;
     if (!roleConfig?.enabled || def.mainSession) continue;
 
-    const count = TEAM_ROLES.includes(id) ? (roleConfig.count ?? 1) : 1;
+    const isTeam = TEAM_ROLES.includes(id);
+    const pmDecides = isTeam && roleConfig.count === PM_DECIDES;
+    const count = isTeam && typeof roleConfig.count === "number" ? roleConfig.count : 1;
     const model = resolveModel(roleConfig.model, config.defaults.model, def.defaultModel);
     const tools = roleConfig.tools ?? def.tools;
     const prompt = withAppend(render(def.prompt, baseVars), roleConfig.promptAppend);
@@ -184,17 +194,25 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
       const numbered = count > 1;
       const agent: AgentSummary = {
         name: numbered ? `${id}-${n}` : id,
-        title: numbered ? `${def.title} ${n}` : def.title,
+        title: numbered
+          ? `${def.title} ${n}`
+          : pmDecides
+            ? `${def.title} (as many as needed)`
+            : def.title,
         model,
         description: numbered
           ? `${def.description} (${def.title} ${n} of ${count}.)`
-          : def.description,
+          : pmDecides
+            ? `${def.description} You can run several at once, one per independent task.`
+            : def.description,
         kind: "role",
         tools: [...tools],
       };
       const note = numbered
         ? `\n\nYou are ${def.title.toLowerCase()} ${n} of ${count}. The others may be working in the same project at the same time on different tasks, so stay within the files your task names.`
-        : "";
+        : pmDecides
+          ? `\n\nThe project manager may run several copies of you at the same time on different tasks, so stay within the files your task names.`
+          : "";
       agents.push(agent);
       prompts[agent.name] = (prompt + note).trim();
       files.push(agentFile(agent, prompt + note));
@@ -293,12 +311,19 @@ export function generate(config: TeamConfig, catalog: Catalog): Generated {
         ),
       ].join("\n")
     : "No other agents are switched on, so do the work yourself.";
+  const flexible = agents
+    .filter((a) => a.title.endsWith("(as many as needed)"))
+    .map((a) => `\`${a.name}\``);
+  const rosterNote = flexible.length
+    ? `\n\nYou decide how many of ${flexible.join(", ")} to run: start one per independent task, all in the same message so they work in parallel, and give each its own files to work on.`
+    : "";
 
-  const claudeSection = render(catalog.templates.claudeSection, {
-    ...baseVars,
-    pmPrompt: withAppend(render(pmDef.prompt, baseVars), pmConfig?.promptAppend),
-    roster,
-  });
+  const claudeSection =
+    render(catalog.templates.claudeSection, {
+      ...baseVars,
+      pmPrompt: withAppend(render(pmDef.prompt, baseVars), pmConfig?.promptAppend),
+      roster: roster + rosterNote,
+    }) + repositorySection(config);
 
   const commandFrontmatter = stringifyYaml(
     {

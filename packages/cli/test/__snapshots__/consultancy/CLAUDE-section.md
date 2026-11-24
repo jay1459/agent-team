@@ -53,3 +53,7 @@ criteria and where to write its output.
 
 The team keeps its working files in `team/`: `brief.md` (the goal), `backlog.md` (tasks,
 owners and status), `decisions/` (design decisions) and any proposals or drafts.
+
+## Repository
+
+The team's work lives in this project's git repository. Have agents work on branches, and only merge or push when the approval gates allow it.

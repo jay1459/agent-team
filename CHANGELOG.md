@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- Roles for QA, UAT testers, security and legal; QA and UAT testers can have several agents
+- "PM decides" for the number of agents in team roles
+- The team works in its own git repository: the UI starts by creating, opening or cloning one
+  (optionally creating it on GitHub), `init --new` / `--clone` do the same, and agent-team's own
+  folder is refused
+
 First release.
 
 - `team.json` schema with roles, specialists, workflow, runner settings and env-only secrets;

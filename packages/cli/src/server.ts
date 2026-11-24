@@ -20,10 +20,26 @@ import { generate, GenerateError } from "./generate.js";
 import { applyPlan, diffChange, pendingChanges, planApply, PlanError } from "./plan.js";
 import { deleteProfile, listProfiles, loadProfile, ProfileError, saveProfile } from "./profiles.js";
 import { listRuns, readRun } from "./run/run-log.js";
+import {
+  cloneProject,
+  createProject,
+  gitInfo,
+  listProjects,
+  openProject,
+  projectProblem,
+  ProjectError,
+  type GithubVisibility,
+} from "./project.js";
 
 export type UiServerOptions = {
-  projectDir: string;
-  configPath: string;
+  /** The project to start on, or null to ask in the UI first. */
+  projectDir: string | null;
+  /** Config file for the starting project (defaults to <project>/team.json). */
+  configPath?: string;
+  /** Folder new projects are cloned or created in, and existing ones are opened from. */
+  projectsRoot: string;
+  /** Why the folder agent-team was started in can't be used, shown on the project screen. */
+  startProblem?: string;
   catalog: Catalog;
   host: string;
   port: number;
@@ -159,7 +175,21 @@ function serveStatic(res: ServerResponse, webDir: string | undefined, urlPath: s
 }
 
 export function createUiHandler(opts: UiServerOptions & { token: string }) {
-  const { projectDir, configPath, catalog } = opts;
+  const { catalog, projectsRoot } = opts;
+  let project: { dir: string; configPath: string } | null = opts.projectDir
+    ? { dir: opts.projectDir, configPath: opts.configPath ?? join(opts.projectDir, "team.json") }
+    : null;
+
+  /** The current project; every config endpoint needs one. */
+  const current = () => {
+    if (!project) throw new HttpError(409, "Choose the project the team works in first.");
+    const problem = projectProblem(project.dir);
+    if (problem) throw new HttpError(409, problem);
+    return project;
+  };
+  const switchTo = (dir: string) => {
+    project = { dir, configPath: join(dir, "team.json") };
+  };
 
   async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     if (!tokenMatches(req, opts.token))
@@ -167,11 +197,16 @@ export function createUiHandler(opts: UiServerOptions & { token: string }) {
     const method = req.method ?? "GET";
 
     if (method === "GET" && path === "/api/state") {
-      const file = readConfigFile(configPath);
+      const problem = project ? projectProblem(project.dir) : null;
+      const usable = project && !problem ? project : null;
+      const file = usable ? readConfigFile(usable.configPath) : { exists: false as const };
       return send(res, 200, {
         version: opts.version,
-        projectDir,
-        configPath,
+        projectDir: usable?.dir ?? null,
+        configPath: usable?.configPath ?? null,
+        projectsRoot,
+        projectProblem: problem ?? (project ? null : (opts.startProblem ?? null)),
+        git: usable ? gitInfo(usable.dir) : null,
         exists: file.exists,
         config: file.exists ? file.raw : null,
         errors: file.exists && !file.result.ok ? file.result.errors : [],
@@ -179,6 +214,38 @@ export function createUiHandler(opts: UiServerOptions & { token: string }) {
         profiles: listProfiles(catalog),
       });
     }
+
+    // Choosing where the team works -----------------------------------------
+    if (method === "GET" && path === "/api/projects")
+      return send(res, 200, listProjects(projectsRoot));
+    if (method === "POST" && path.startsWith("/api/project/")) {
+      const body = (await readJson(req)) as {
+        path?: string;
+        init?: boolean;
+        url?: string;
+        name?: string;
+        github?: GithubVisibility | null;
+        description?: string;
+      };
+      let result;
+      if (path === "/api/project/open")
+        result = openProject(projectsRoot, body.path ?? "", { init: body.init ?? false });
+      else if (path === "/api/project/clone")
+        result = cloneProject(projectsRoot, body.url ?? "", body.name);
+      else if (path === "/api/project/create") {
+        if (body.github && body.github !== "private" && body.github !== "public") {
+          throw new HttpError(400, 'github must be "private" or "public"');
+        }
+        result = createProject(projectsRoot, body.name ?? "", {
+          ...(body.github ? { github: body.github } : {}),
+          ...(body.description ? { description: body.description } : {}),
+        });
+      } else throw new HttpError(404, `No such endpoint: ${method} ${path}`);
+      switchTo(result.dir);
+      return send(res, 200, { dir: result.dir, git: result.git });
+    }
+
+    const { dir: projectDir, configPath } = current();
 
     if (method === "PUT" && path === "/api/config") {
       const { config } = (await readJson(req)) as { config?: unknown };
@@ -270,6 +337,8 @@ export function createUiHandler(opts: UiServerOptions & { token: string }) {
     } catch (err) {
       if (err instanceof HttpError)
         return send(res, err.status, { error: err.message, errors: err.errors ?? [err.message] });
+      if (err instanceof ProjectError)
+        return send(res, 422, { error: err.message, errors: [err.message] });
       if (err instanceof ProfileError || err instanceof PlanError) {
         return send(res, 409, { error: err.message, errors: [err.message] });
       }

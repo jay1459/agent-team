@@ -41,6 +41,36 @@ describe("generate", () => {
     expect(names(3)).toEqual(["developer-1", "developer-2", "developer-3"]);
   });
 
+  it("makes one agent the PM can run several of when the count is left to the PM", () => {
+    const out = generate(
+      config({
+        roles: {
+          pm: { enabled: true },
+          developer: { enabled: true, count: "pm-decides" },
+          qa: { enabled: true },
+        },
+      }),
+      catalog,
+    );
+    expect(out.agents.map((a) => a.name)).toEqual(["developer", "qa"]);
+    expect(out.agents[0]!.title).toBe("Developer (as many as needed)");
+    expect(out.prompts.developer).toContain("may run several copies of you at the same time");
+    expect(out.claudeSection).toContain("You decide how many of `developer` to run");
+    expect(out.claudeSection).not.toContain("`qa` to run");
+  });
+
+  it("tells the PM where the work lives", () => {
+    expect(generate(config(), catalog).claudeSection).toContain(
+      "The team's work lives in this project's git repository.",
+    );
+    expect(
+      generate(
+        config({ project: { name: "X", repository: "https://github.com/a/b.git" } }),
+        catalog,
+      ).claudeSection,
+    ).toContain("Its remote is `https://github.com/a/b.git`.");
+  });
+
   it("resolves models: agent, then team default, then catalog", () => {
     const models = (input: Parameters<typeof config>[0]) =>
       Object.fromEntries(generate(config(input), catalog).agents.map((a) => [a.name, a.model]));

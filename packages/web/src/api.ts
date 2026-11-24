@@ -18,10 +18,17 @@ export type UiCatalog = {
 
 export type ProfileInfo = { name: string; description?: string; source: "user" | "built-in" };
 
+export type GitInfo = { isRepo: boolean; remote?: string };
+export type ProjectListing = { name: string; dir: string; isRepo: boolean; hasTeam: boolean };
+
 export type UiState = {
   version: string;
-  projectDir: string;
-  configPath: string;
+  /** null until a project is chosen. */
+  projectDir: string | null;
+  configPath: string | null;
+  projectsRoot: string;
+  projectProblem: string | null;
+  git: GitInfo | null;
   exists: boolean;
   config: TeamConfigInput | null;
   errors: string[];
@@ -101,6 +108,20 @@ export const api = {
     }),
   profiles: () => call<ProfileInfo[]>("GET", "/api/profiles"),
   runs: () => call<RunSummary[]>("GET", "/api/runs"),
+  projects: () => call<ProjectListing[]>("GET", "/api/projects"),
+  openProject: (path: string, init: boolean) =>
+    call<{ dir: string; git: GitInfo }>("POST", "/api/project/open", { path, init }),
+  cloneProject: (url: string, name?: string) =>
+    call<{ dir: string; git: GitInfo }>("POST", "/api/project/clone", {
+      url,
+      ...(name ? { name } : {}),
+    }),
+  createProject: (name: string, github: "private" | "public" | null, description?: string) =>
+    call<{ dir: string; git: GitInfo }>("POST", "/api/project/create", {
+      name,
+      github,
+      ...(description ? { description } : {}),
+    }),
   run: (id: string) => call<RunEvent[]>("GET", `/api/runs/${encodeURIComponent(id)}`),
   profile: (name: string) => call<Profile>("GET", `/api/profiles/${encodeURIComponent(name)}`),
   saveProfile: (body: {

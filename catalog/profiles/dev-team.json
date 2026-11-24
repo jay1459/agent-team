@@ -2,12 +2,32 @@
   "$schema": "https://raw.githubusercontent.com/jay1459/agent-team/main/schemas/profile.schema.json",
   "version": 1,
   "name": "dev-team",
-  "description": "PM, architect, lead developer and three developers.",
+  "description": "PM, architect, lead developer, developers (as many as the PM needs) and QA.",
   "roles": {
-    "pm": { "enabled": true, "model": "opus" },
-    "architect": { "enabled": true, "model": "opus" },
-    "lead-dev": { "enabled": true, "model": "sonnet" },
-    "developer": { "enabled": true, "model": "sonnet", "count": 3 }
+    "pm": {
+      "enabled": true,
+      "model": "opus"
+    },
+    "architect": {
+      "enabled": true,
+      "model": "opus"
+    },
+    "lead-dev": {
+      "enabled": true,
+      "model": "sonnet"
+    },
+    "developer": {
+      "enabled": true,
+      "model": "sonnet",
+      "count": "pm-decides"
+    },
+    "qa": {
+      "enabled": true,
+      "model": "sonnet"
+    }
   },
-  "workflow": { "humanApproval": ["architecture", "merge"], "workspace": "team/" }
+  "workflow": {
+    "humanApproval": ["architecture", "merge"],
+    "workspace": "team/"
+  }
 }

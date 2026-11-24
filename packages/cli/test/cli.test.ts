@@ -44,7 +44,7 @@ describe("agent-team CLI", () => {
 
     const validate = await run(dir, ["validate"]);
     expect(validate.code).toBe(0);
-    expect(validate.text()).toContain("6 agents (PM + 5)");
+    expect(validate.text()).toContain("5 agents (PM + 4)");
 
     const declined = await run(dir, ["apply"], [false]);
     expect(declined.code).toBe(1);
@@ -52,7 +52,8 @@ describe("agent-team CLI", () => {
 
     const applied = await run(dir, ["apply"], [true]);
     expect(applied.code).toBe(0);
-    expect(existsSync(join(dir, ".claude/agents/developer-3.md"))).toBe(true);
+    expect(existsSync(join(dir, ".claude/agents/developer.md"))).toBe(true);
+    expect(existsSync(join(dir, ".claude/agents/qa.md"))).toBe(true);
 
     const again = await run(dir, ["apply"]);
     expect(again.code).toBe(0);
@@ -65,6 +66,39 @@ describe("agent-team CLI", () => {
     const config = JSON.parse(readFileSync(join(dir, "team.json"), "utf8"));
     expect(config.extends).toBeUndefined();
     expect(Object.keys(config.roles)).toEqual(["pm", "developer"]);
+  });
+
+  it("creates or clones the team's repository with init, and refuses agent-team's own folder", async () => {
+    const root = tempDir();
+    const created = await run(root, ["init", "--new", "my-app", "--profile", "dev-team"]);
+    expect(created.code).toBe(0);
+    expect(created.text()).toContain(`Created ${join(root, "my-app")}`);
+    expect(JSON.parse(readFileSync(join(root, "my-app", "team.json"), "utf8")).extends).toBe(
+      "dev-team",
+    );
+    expect(existsSync(join(root, "my-app", ".git"))).toBe(true);
+
+    const cloned = await run(root, [
+      "init",
+      "--clone",
+      `file://${join(root, "my-app")}`,
+      "--into",
+      "copy",
+      "--force",
+    ]);
+    expect(cloned.code).toBe(0);
+    expect(existsSync(join(root, "copy", "team.json"))).toBe(true);
+
+    expect((await run(root, ["init", "--new", "a", "--clone", "b"])).code).toBe(2);
+    expect((await run(root, ["init", "--github", "private"])).code).toBe(2);
+
+    const own = tempDir();
+    writeFileSync(join(own, "package.json"), JSON.stringify({ name: "agent-team-monorepo" }));
+    const refused = await run(own, ["init"]);
+    expect(refused.code).toBe(2);
+    expect(refused.errors()).toContain("part of agent-team itself");
+    expect((await run(own, ["apply", "--yes"])).code).toBe(2);
+    expect(existsSync(join(own, "team.json"))).toBe(false);
   });
 
   it("dry-run shows a diff and writes nothing", async () => {

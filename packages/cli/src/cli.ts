@@ -11,6 +11,16 @@ import { generate } from "./generate.js";
 import { applyPlan, diffChange, pendingChanges, planApply, summarisePlan } from "./plan.js";
 import { deleteProfile, listProfiles, loadProfile, saveProfile } from "./profiles.js";
 import { isLoopback, startUiServer } from "./server.js";
+import {
+  cloneProject,
+  createProject,
+  gitInfo,
+  initialProject,
+  projectProblem,
+  shareableRemote,
+  ProjectError,
+  type GithubVisibility,
+} from "./project.js";
 import { defaultDeps, formatChecks, runDoctor, type DoctorDeps } from "./doctor.js";
 import { MissingEnvError } from "./run/mcp-config.js";
 import { listRuns, type RunEvent } from "./run/run-log.js";
@@ -33,6 +43,10 @@ export const HELP = `agent-team: run a project with a team of Claude Code agents
 Usage
   agent-team init [--profile <name>] [--name <project>] [--force]
                               Create team.json, from a profile if given
+  agent-team init --new <folder> [--github private|public] [--profile <name>]
+                              Create a new git repository for the team's work, then team.json
+  agent-team init --clone <url> [--into <folder>] [--profile <name>]
+                              Clone an existing repository for the team's work, then team.json
   agent-team validate         Check team.json
   agent-team apply [--yes] [--dry-run] [--diff]
                               Write the agent files Claude Code reads
@@ -47,7 +61,7 @@ Usage
   agent-team run --continue "<reply>"
                               Continue the latest run (e.g. answer the PM's question)
   agent-team runs             List runs and what they cost
-  agent-team ui [--host <addr>] [--port <n>]
+  agent-team ui [--host <addr>] [--port <n>] [--projects-root <folder>]
                               Edit the team in your browser (default http://127.0.0.1:7420)
 
 Options
@@ -73,6 +87,11 @@ function parse(argv: string[]) {
       config: { type: "string", short: "c" },
       profile: { type: "string", short: "p" },
       name: { type: "string" },
+      new: { type: "string" },
+      clone: { type: "string" },
+      into: { type: "string" },
+      github: { type: "string" },
+      "projects-root": { type: "string" },
       description: { type: "string" },
       force: { type: "boolean", short: "f" },
       yes: { type: "boolean", short: "y" },
@@ -113,13 +132,47 @@ function loadConfig(configPath: string, io: Io): TeamConfig | null {
   return file.result.value;
 }
 
+/** The team's work must not land in agent-team's own folder. */
+function refuseAgentTeamFolder(projectDir: string): void {
+  const problem = projectProblem(projectDir);
+  if (problem)
+    throw new UsageError(
+      `${problem}\nPoint agent-team at your project with -C <folder>, or use init --new / --clone.`,
+    );
+}
+
 async function cmdInit(args: Args, io: Io, catalog: Catalog): Promise<number> {
-  const { projectDir, configPath } = paths(args, io);
+  const { new: newRepo, clone, github, into } = args.values;
+  if (newRepo && clone) throw new UsageError("Choose --new or --clone, not both.");
+  if (github && !newRepo) throw new UsageError("--github only goes with --new.");
+  if (github && github !== "private" && github !== "public")
+    throw new UsageError('--github must be "private" or "public".');
+  if (into && !clone) throw new UsageError("--into only goes with --clone.");
+
+  let { projectDir, configPath } = paths(args, io);
+  if (newRepo || clone) {
+    // New and cloned repositories go inside the -C folder (default: the current folder).
+    const root = projectDir;
+    const made = newRepo
+      ? createProject(root, newRepo, github ? { github: github as GithubVisibility } : {})
+      : cloneProject(root, clone!, into);
+    io.out(
+      `${newRepo ? "Created" : "Cloned"} ${made.dir}${made.git.remote ? ` (${made.git.remote})` : ""}.`,
+    );
+    projectDir = made.dir;
+    configPath = join(projectDir, CONFIG_FILE);
+  }
+  refuseAgentTeamFolder(projectDir);
+
   if (readConfigFile(configPath).exists && !args.values.force) {
     io.err(`${configPath} already exists (use --force to replace it).`);
     return 1;
   }
-  const project = { name: args.values.name ?? basename(projectDir) };
+  const repository = shareableRemote(gitInfo(projectDir).remote);
+  const project = {
+    name: args.values.name ?? basename(projectDir),
+    ...(repository ? { repository } : {}),
+  };
   const config = args.values.profile
     ? teamConfigFromProfile(loadProfile(args.values.profile, catalog), project)
     : teamConfigFromProfile(loadProfile("minimal", catalog), project);
@@ -128,6 +181,11 @@ async function cmdInit(args: Args, io: Io, catalog: Catalog): Promise<number> {
   io.out(
     `Created ${configPath}${args.values.profile ? ` from profile "${args.values.profile}"` : ""}.`,
   );
+  if (!gitInfo(projectDir).isRepo) {
+    io.err(
+      `! ${projectDir} isn't a git repository. Run \`git init\` there so the team's work is tracked.`,
+    );
+  }
   io.out("Edit it, then run `agent-team apply`.");
   return 0;
 }
@@ -146,6 +204,7 @@ async function cmdValidate(args: Args, io: Io, catalog: Catalog): Promise<number
 
 async function cmdApply(args: Args, io: Io, catalog: Catalog): Promise<number> {
   const { projectDir, configPath } = paths(args, io);
+  refuseAgentTeamFolder(projectDir);
   const config = loadConfig(configPath, io);
   if (!config) return 1;
   const plan = planApply(projectDir, generate(config, catalog));
@@ -209,7 +268,15 @@ async function cmdProfile(args: Args, io: Io, catalog: Catalog): Promise<number>
 }
 
 async function cmdUi(args: Args, io: Io, catalog: Catalog): Promise<number> {
-  const { projectDir, configPath } = paths(args, io);
+  const start = initialProject({
+    cwd: io.cwd,
+    ...(args.values.dir ? { dir: args.values.dir } : {}),
+    ...(args.values["projects-root"] ? { root: args.values["projects-root"] } : {}),
+  });
+  const projectDir = start.projectDir;
+  const configPath = projectDir
+    ? resolve(projectDir, args.values.config ?? CONFIG_FILE)
+    : undefined;
   const host = args.values.host ?? "127.0.0.1";
   const port = Number(args.values.port ?? DEFAULT_UI_PORT);
   if (!Number.isInteger(port) || port < 0 || port > 65535)
@@ -217,13 +284,19 @@ async function cmdUi(args: Args, io: Io, catalog: Catalog): Promise<number> {
 
   const ui = await startUiServer({
     projectDir,
-    configPath,
+    ...(configPath ? { configPath } : {}),
+    projectsRoot: start.root,
+    ...(start.problem ? { startProblem: start.problem } : {}),
     catalog,
     host,
     port,
     version: version(),
   });
-  io.out(`agent-team UI for ${projectDir}\n\n  Open: ${ui.url}\n`);
+  io.out(
+    projectDir
+      ? `agent-team UI for ${projectDir}\n\n  Open: ${ui.url}\n`
+      : `agent-team UI: choose the team's project in the browser (projects folder: ${start.root})\n\n  Open: ${ui.url}\n`,
+  );
   if (!isLoopback(host)) {
     io.err(
       "! Listening beyond this machine. Anyone on the network who gets the link (it holds the access token) can change this project's agent files.",
@@ -272,6 +345,7 @@ function formatEvent(e: RunEvent): string | null {
 
 async function cmdRun(args: Args, io: Io, catalog: Catalog): Promise<number> {
   const { projectDir, configPath } = paths(args, io);
+  refuseAgentTeamFolder(projectDir);
   const config = loadConfig(configPath, io);
   if (!config) return 1;
   const goal = args.positionals.slice(1).join(" ").trim();
@@ -401,6 +475,10 @@ export async function main(argv: string[], io: Io, catalog?: Catalog): Promise<n
     if (!run) throw new UsageError(`Unknown command "${command}". Run \`agent-team --help\`.`);
     return await run(args, io, catalog ?? loadCatalog());
   } catch (err) {
+    if (err instanceof ProjectError) {
+      io.err(err.message);
+      return 1;
+    }
     if (
       err instanceof UsageError ||
       (err as { code?: string }).code?.startsWith("ERR_PARSE_ARGS")

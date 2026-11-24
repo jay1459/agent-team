@@ -20,7 +20,7 @@ test("creates a team from a profile, edits it and applies", async ({ page, start
   await page.getByRole("button", { name: "Create team" }).click();
   await expect(page.getByRole("status")).toHaveText("Not saved yet");
 
-  await page.locator('[data-role="developer"]').getByLabel("How many").fill("2");
+  await page.locator('[data-role="developer"]').getByLabel("How many").selectOption("2");
   await page.locator('[data-role="sales"]').getByRole("checkbox").first().check();
   await page.locator('[data-role="sales"]').getByLabel("Model").selectOption("sonnet");
   await page.getByRole("button", { name: "Save" }).click();
@@ -33,7 +33,7 @@ test("creates a team from a profile, edits it and applies", async ({ page, start
   expect(saved.roles.sales).toEqual({ enabled: true, model: "sonnet" });
 
   await page.getByRole("tab", { name: "Preview & apply" }).click();
-  await expect(page.getByText("plus 5 agents")).toBeVisible();
+  await expect(page.getByText("plus 6 agents")).toBeVisible();
   const salesFile = page
     .locator("details")
     .filter({ has: page.getByText(".claude/agents/sales.md", { exact: true }) });
@@ -235,4 +235,48 @@ test("sets runner options and shows run logs", async ({ page, startUi }) => {
   await expect(page.getByText("pm ⇒ lead-dev team:")).toBeVisible();
   await expect(page.getByText("Blog added.")).toBeVisible();
   await expect(page.locator(".run-log")).toContainText("developer-1 → Bash npm test");
+});
+
+test("starts by choosing the team's repository, never agent-team's own folder", async ({
+  page,
+  startUi,
+}) => {
+  const ui = await startUi({ noProject: true });
+  mkdirSync(join(ui.projectDir, "agent-team"));
+  writeFileSync(
+    join(ui.projectDir, "agent-team", "package.json"),
+    JSON.stringify({ name: "agent-team-monorepo" }),
+  );
+  await page.goto(ui.url);
+
+  await expect(page.getByText("Where should the team work?")).toBeVisible();
+  await page.getByLabel("Repository name").fill("ccaas-pipeline");
+  await page.getByLabel("Description").fill("D365 CI/CD");
+  await page.getByRole("button", { name: "Create repository" }).click();
+
+  await expect(page.getByText("There's no team.json in")).toBeVisible();
+  await page.getByLabel(/consultancy/).check();
+  await page.getByRole("button", { name: "Create team" }).click();
+  const qa = page.locator('[data-role="qa"]');
+  await expect(qa.getByLabel("How many")).toHaveValue("pm-decides");
+  await expect(page.locator('[data-role="security"]').getByRole("checkbox").first()).toBeChecked();
+  await expect(page.locator('[data-role="uat-tester"]')).toBeVisible();
+  await page.locator('[data-role="developer"]').getByLabel("How many").selectOption("pm-decides");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+
+  const repo = join(ui.projectDir, "ccaas-pipeline");
+  expect(existsSync(join(repo, ".git"))).toBe(true);
+  expect(readJson(join(repo, "team.json")).roles.developer.count).toBe("pm-decides");
+  expect(existsSync(join(ui.projectDir, "team.json"))).toBe(false);
+
+  await page.getByRole("button", { name: "Change project" }).click();
+  await page.getByText("Use an existing repository").click();
+  await expect(page.getByRole("radio", { name: /ccaas-pipeline/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /^agent-team/ })).toHaveCount(0);
+  await page.getByLabel("Folder", { exact: true }).fill("agent-team");
+  await page.getByLabel(/Make it a git repository/).check();
+  await page.getByRole("button", { name: "Use this repository" }).click();
+  await expect(page.getByText(/part of agent-team itself/)).toBeVisible();
+  expect(existsSync(join(ui.projectDir, "agent-team", ".git"))).toBe(false);
 });
