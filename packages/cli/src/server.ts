@@ -21,6 +21,16 @@ import { applyPlan, diffChange, pendingChanges, planApply, PlanError } from "./p
 import { deleteProfile, listProfiles, loadProfile, ProfileError, saveProfile } from "./profiles.js";
 import { listRuns, readRun } from "./run/run-log.js";
 import {
+  defaultSessionDeps,
+  SessionError,
+  sessionStatus,
+  startSession,
+  stopSession,
+  trustFolder,
+  type SessionDeps,
+  type SessionPermissionMode,
+} from "./rc-session.js";
+import {
   cloneProject,
   createProject,
   gitInfo,
@@ -40,6 +50,8 @@ export type UiServerOptions = {
   projectsRoot: string;
   /** Why the folder agent-team was started in can't be used, shown on the project screen. */
   startProblem?: string;
+  /** tmux/claude access for Remote Control sessions; swapped out in tests. */
+  sessionDeps?: SessionDeps;
   catalog: Catalog;
   host: string;
   port: number;
@@ -247,6 +259,56 @@ export function createUiHandler(opts: UiServerOptions & { token: string }) {
 
     const { dir: projectDir, configPath } = current();
 
+    // Remote Control session for the team -------------------------------------
+    const sessionDeps = opts.sessionDeps ?? defaultSessionDeps();
+    /** Whether the generated files match team.json (null when team.json can't be used). */
+    const upToDate = () => {
+      const file = readConfigFile(configPath);
+      if (!file.exists || !file.result.ok) return null;
+      try {
+        return (
+          pendingChanges(planApply(projectDir, generate(file.result.value, catalog))).length === 0
+        );
+      } catch {
+        return null;
+      }
+    };
+    if (method === "GET" && path === "/api/session") {
+      return send(res, 200, { ...sessionStatus(projectDir, sessionDeps), upToDate: upToDate() });
+    }
+    if (method === "POST" && path === "/api/session/start") {
+      const body = (await readJson(req)) as {
+        goal?: string;
+        name?: string;
+        permissionMode?: SessionPermissionMode;
+        apply?: boolean;
+      };
+      const file = readConfigFile(configPath);
+      if (!file.exists || !file.result.ok) throw new HttpError(409, "Save a valid team first.");
+      const plan = planApply(projectDir, prepare(file.raw, catalog).generated);
+      if (pendingChanges(plan).length) {
+        if (!body.apply)
+          throw new HttpError(409, "The team's files are out of date. Apply them first.");
+        applyPlan(plan);
+      }
+      const status = startSession(
+        {
+          projectDir,
+          goal: body.goal ?? "",
+          name: body.name ?? `${file.result.value.project.name} team`,
+          ...(body.permissionMode ? { permissionMode: body.permissionMode } : {}),
+        },
+        sessionDeps,
+      );
+      return send(res, 200, { ...status, upToDate: true });
+    }
+    if (method === "POST" && path === "/api/session/trust") {
+      return send(res, 200, { ...trustFolder(projectDir, sessionDeps), upToDate: upToDate() });
+    }
+    if (method === "POST" && path === "/api/session/stop") {
+      return send(res, 200, { ...stopSession(projectDir, sessionDeps), upToDate: upToDate() });
+    }
+
     if (method === "PUT" && path === "/api/config") {
       const { config } = (await readJson(req)) as { config?: unknown };
       prepare(config, catalog);
@@ -339,7 +401,7 @@ export function createUiHandler(opts: UiServerOptions & { token: string }) {
         return send(res, err.status, { error: err.message, errors: err.errors ?? [err.message] });
       if (err instanceof ProjectError)
         return send(res, 422, { error: err.message, errors: [err.message] });
-      if (err instanceof ProfileError || err instanceof PlanError) {
+      if (err instanceof ProfileError || err instanceof PlanError || err instanceof SessionError) {
         return send(res, 409, { error: err.message, errors: [err.message] });
       }
       send(res, 500, { error: "Something went wrong", errors: [(err as Error).message] });

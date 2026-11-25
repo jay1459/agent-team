@@ -9,7 +9,9 @@ const CLI = join(import.meta.dirname, "../packages/cli/dist/cli.js");
 type Ui = { url: string; projectDir: string; home: string; stop: () => void };
 
 /** Start `agent-team ui` on a free port for a fresh project folder. */
-async function startUi(opts: { config?: unknown; noProject?: boolean } = {}): Promise<Ui> {
+async function startUi(
+  opts: { config?: unknown; noProject?: boolean; path?: string } = {},
+): Promise<Ui> {
   const projectDir = mkdtempSync(join(tmpdir(), "agent-team-e2e-"));
   const home = mkdtempSync(join(tmpdir(), "agent-team-e2e-home-"));
   if (opts.config) writeFileSync(join(projectDir, "team.json"), JSON.stringify(opts.config));
@@ -17,7 +19,11 @@ async function startUi(opts: { config?: unknown; noProject?: boolean } = {}): Pr
   const args = opts.noProject ? ["ui", "--port", "0"] : ["ui", "-C", projectDir, "--port", "0"];
   const child: ChildProcess = spawn(process.execPath, [CLI, ...args], {
     cwd: projectDir,
-    env: { ...process.env, AGENT_TEAM_HOME: home },
+    env: {
+      ...process.env,
+      AGENT_TEAM_HOME: home,
+      ...(opts.path ? { PATH: `${opts.path}:${process.env.PATH}` } : {}),
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   const url = await new Promise<string>((resolve, reject) => {

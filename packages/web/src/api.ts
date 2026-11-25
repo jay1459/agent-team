@@ -62,6 +62,20 @@ export type RunSummary = {
 /** One line of a run log; see packages/cli/src/run/run-log.ts. */
 export type RunEvent = { kind: string; at: string; [key: string]: unknown };
 
+export type SessionStatus = {
+  available: boolean;
+  missing: string[];
+  tmuxSession: string;
+  running: boolean;
+  url?: string;
+  waitingFor?: "trust";
+  screen?: string;
+  /** Whether the team's files match team.json; null if team.json can't be used yet. */
+  upToDate: boolean | null;
+};
+
+export type SessionPermissionMode = "manual" | "acceptEdits" | "auto" | "plan";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -108,6 +122,15 @@ export const api = {
     }),
   profiles: () => call<ProfileInfo[]>("GET", "/api/profiles"),
   runs: () => call<RunSummary[]>("GET", "/api/runs"),
+  session: () => call<SessionStatus>("GET", "/api/session"),
+  startSession: (body: {
+    goal: string;
+    name: string;
+    permissionMode?: SessionPermissionMode;
+    apply: boolean;
+  }) => call<SessionStatus>("POST", "/api/session/start", body),
+  trustSession: () => call<SessionStatus>("POST", "/api/session/trust", {}),
+  stopSession: () => call<SessionStatus>("POST", "/api/session/stop", {}),
   projects: () => call<ProjectListing[]>("GET", "/api/projects"),
   openProject: (path: string, init: boolean) =>
     call<{ dir: string; git: GitInfo }>("POST", "/api/project/open", { path, init }),

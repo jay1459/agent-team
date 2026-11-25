@@ -31,6 +31,9 @@ folder, which is refused. Then pick a starting team. The page has tabs for:
 - **Workflow:** approval gates, workspace, secrets, unattended runs
 - **Profiles:** reusable teams
 - **Preview & apply:** a diff of every file that will change
+- **Start:** start the team in a Claude Code session with
+  [Remote Control](https://code.claude.com/docs/en/remote-control), then follow it and answer the PM
+  in the Claude app or on claude.ai/code
 - **Runs:** logs of unattended runs
 - **JSON:** the raw config
 
@@ -144,6 +147,18 @@ reference is in [docs/configuration.md](docs/configuration.md), and there are ex
 
 **Profiles** are reusable teams kept in `~/.agent-team/profiles/`. Start a project from one, tweak
 its `team.json`, and save it as a new profile if you like.
+
+## Starting from the UI (Remote Control)
+
+The **Start** tab takes a goal for the PM, applies the team's files if they're out of date, and starts
+`claude --remote-control` in the project with `/team <goal>`. It shows the session's claude.ai/code
+link as soon as Remote Control connects, so you can follow the team and answer its questions from
+your phone. If Claude Code asks whether you trust the project's folder, the tab has a button to say
+yes. You can also choose the session's permission mode and stop it.
+
+It needs `tmux` and Claude Code on the machine running agent-team: the session runs in a detached
+tmux session (one per project), which you can also attach to in a terminal. It uses your Claude
+plan's usage like any other Claude Code session.
 
 ## Unattended runs
 

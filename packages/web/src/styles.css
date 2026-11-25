@@ -532,3 +532,8 @@ tr.selected td {
 .banner {
   margin-bottom: 1rem;
 }
+
+pre.screen {
+  font-size: 0.75rem;
+  max-height: 360px;
+}

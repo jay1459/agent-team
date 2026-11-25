@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- Start tab: start the team in a Claude Code Remote Control session from the UI, with its
+  claude.ai/code link, a button for the folder-trust question, permission mode and stop
 - Roles for QA, UAT testers, security and legal; QA and UAT testers can have several agents
 - "PM decides" for the number of agents in team roles
 - The team works in its own git repository: the UI starts by creating, opening or cloning one
