@@ -43,15 +43,16 @@ The PM's model is set on the `/team` command, so it applies when you start work 
 
 ## roles
 
-Keys: `pm`, `architect`, `lead-dev`, `developer`, `presales`, `sales`.
+Keys: `pm`, `architect`, `lead-dev`, `developer`, `qa`, `uat-tester`, `security`, `legal`,
+`presales`, `sales`.
 
-| Field          | Meaning                                                                           |
-| -------------- | --------------------------------------------------------------------------------- |
-| `enabled`      | Whether the role is on the team                                                   |
-| `model`        | See [Models](#models)                                                             |
-| `count`        | `developer` and `sales` only: 1–10 agents (named `developer-1`, `developer-2`, …) |
-| `promptAppend` | Extra instructions added to the end of the role's prompt                          |
-| `tools`        | Replaces the role's tool list (Claude Code tool names, or `mcp__server`)          |
+| Field          | Meaning                                                                                                                                                                          |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`      | Whether the role is on the team                                                                                                                                                  |
+| `model`        | See [Models](#models)                                                                                                                                                            |
+| `count`        | `developer`, `qa`, `uat-tester` and `sales` only: 1–10 agents (named `developer-1`, `developer-2`, …), or `"pm-decides"` for one agent the PM runs as many copies of as it needs |
+| `promptAppend` | Extra instructions added to the end of the role's prompt                                                                                                                         |
+| `tools`        | Replaces the role's tool list (Claude Code tool names, or `mcp__server`)                                                                                                         |
 
 ## specialists
 

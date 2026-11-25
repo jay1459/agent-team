@@ -503,3 +503,32 @@ tr.selected td {
   white-space: pre-wrap;
   margin-top: 0.2rem;
 }
+
+.centred.wide {
+  max-width: 760px;
+}
+.mode-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0.6rem;
+}
+.mode {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.mode.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mode input {
+  width: auto;
+}
+.banner {
+  margin-bottom: 1rem;
+}

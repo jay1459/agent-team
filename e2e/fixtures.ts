@@ -9,18 +9,17 @@ const CLI = join(import.meta.dirname, "../packages/cli/dist/cli.js");
 type Ui = { url: string; projectDir: string; home: string; stop: () => void };
 
 /** Start `agent-team ui` on a free port for a fresh project folder. */
-async function startUi(opts: { config?: unknown } = {}): Promise<Ui> {
+async function startUi(opts: { config?: unknown; noProject?: boolean } = {}): Promise<Ui> {
   const projectDir = mkdtempSync(join(tmpdir(), "agent-team-e2e-"));
   const home = mkdtempSync(join(tmpdir(), "agent-team-e2e-home-"));
   if (opts.config) writeFileSync(join(projectDir, "team.json"), JSON.stringify(opts.config));
-  const child: ChildProcess = spawn(
-    process.execPath,
-    [CLI, "ui", "-C", projectDir, "--port", "0"],
-    {
-      env: { ...process.env, AGENT_TEAM_HOME: home },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  // With noProject, projectDir is the projects folder and the UI starts on the project chooser.
+  const args = opts.noProject ? ["ui", "--port", "0"] : ["ui", "-C", projectDir, "--port", "0"];
+  const child: ChildProcess = spawn(process.execPath, [CLI, ...args], {
+    cwd: projectDir,
+    env: { ...process.env, AGENT_TEAM_HOME: home },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const url = await new Promise<string>((resolve, reject) => {
     let out = "";
     const timer = setTimeout(
@@ -46,7 +45,10 @@ export const test = base.extend<{ startUi: typeof startUi }>({
     const started: Ui[] = [];
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
-    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+    page.on("console", (m) => {
+      // A 4xx the UI shows to the user (e.g. a refused folder) is expected; anything else isn't.
+      if (m.type() === "error" && !/status of 4\d\d/.test(m.text())) errors.push(m.text());
+    });
     await use(async (opts) => {
       const ui = await startUi(opts);
       started.push(ui);

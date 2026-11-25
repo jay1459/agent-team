@@ -70,10 +70,34 @@ describe("team.json", () => {
     expect(parseTeamConfig(withRoles({ developer: { enabled: true, count: 4 } })).ok).toBe(true);
     expect(parseTeamConfig(withRoles({ sales: { enabled: true, count: 2 } })).ok).toBe(true);
     expect(errorsFor(withRoles({ architect: { enabled: true, count: 2 } }))).toEqual([
-      "roles.architect.count: Only developer and sales can have more than one agent",
+      "roles.architect.count: Only developer, qa, uat-tester and sales can have more than one agent",
     ]);
     expect(errorsFor(withRoles({ developer: { enabled: true, count: 0 } }))).not.toEqual([]);
     expect(errorsFor(withRoles({ developer: { enabled: true, count: 11 } }))).not.toEqual([]);
+  });
+
+  it("lets team roles leave the number of agents to the PM", () => {
+    const withRoles = (roles: object) => ({
+      ...minimal(),
+      roles: { pm: { enabled: true }, ...roles },
+    });
+    for (const id of ["developer", "qa", "uat-tester", "sales"]) {
+      expect(
+        parseTeamConfig(withRoles({ [id]: { enabled: true, count: "pm-decides" } })).ok,
+        id,
+      ).toBe(true);
+    }
+    expect(errorsFor(withRoles({ security: { enabled: true, count: "pm-decides" } }))).toEqual([
+      "roles.security.count: Only developer, qa, uat-tester and sales can have more than one agent",
+    ]);
+    expect(errorsFor(withRoles({ developer: { enabled: true, count: "lots" } }))).not.toEqual([]);
+  });
+
+  it("accepts shareable repository addresses only", () => {
+    const withRepo = (repository: string) => ({ ...minimal(), project: { name: "X", repository } });
+    expect(parseTeamConfig(withRepo("https://github.com/a/b.git")).ok).toBe(true);
+    expect(parseTeamConfig(withRepo("git@github.com:a/b.git")).ok).toBe(true);
+    expect(errorsFor(withRepo("/home/me/code"))).not.toEqual([]);
   });
 
   it("checks tool names", () => {

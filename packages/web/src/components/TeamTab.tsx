@@ -1,4 +1,4 @@
-import type { RoleConfig, RoleId, TeamConfigInput } from "@agent-team/schema";
+import { PM_DECIDES, type RoleConfig, type RoleId, type TeamConfigInput } from "@agent-team/schema";
 import type { CatalogRole, UiCatalog } from "../api.ts";
 import type { Edit } from "../App.tsx";
 import { Field, FieldErrors, ModelSelect } from "./fields.tsx";
@@ -145,20 +145,25 @@ function RoleCard({
             {role.team && (
               <Field label="How many">
                 {(fid) => (
-                  <input
+                  <select
                     id={fid}
-                    type="number"
-                    min={1}
-                    max={catalog.maxTeamSize}
-                    value={config?.count ?? 1}
+                    value={String(config?.count ?? 1)}
                     onChange={(e) =>
                       set((r) => {
-                        const n = Number(e.target.value);
-                        if (n <= 1) delete r.count;
-                        else r.count = n;
+                        const v = e.target.value;
+                        if (v === PM_DECIDES) r.count = PM_DECIDES;
+                        else if (Number(v) <= 1) delete r.count;
+                        else r.count = Number(v);
                       })
                     }
-                  />
+                  >
+                    <option value={PM_DECIDES}>PM decides</option>
+                    {Array.from({ length: catalog.maxTeamSize }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={String(n)}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </Field>
             )}

@@ -9,7 +9,8 @@ import { SpecialistsTab } from "./components/SpecialistsTab.tsx";
 import { TeamTab } from "./components/TeamTab.tsx";
 import { Welcome } from "./components/Welcome.tsx";
 import { WorkflowTab } from "./components/WorkflowTab.tsx";
-import { errorsUnder } from "./util.ts";
+import { ProjectChooser } from "./components/ProjectChooser.tsx";
+import { errorsUnder, shareableRemote } from "./util.ts";
 
 export type Edit = (change: (draft: TeamConfigInput) => void) => void;
 
@@ -36,6 +37,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("team");
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
+  const [choosing, setChoosing] = useState(false);
 
   const loaded = useCallback((s: UiState) => {
     setState(s);
@@ -126,13 +128,34 @@ export function App() {
   }
   if (!state) return <main className="centred">Loading…</main>;
 
+  if (!state.projectDir || choosing) {
+    return (
+      <ProjectChooser
+        state={state}
+        onChosen={() => {
+          setChoosing(false);
+          setNotice(null);
+          void reload();
+        }}
+        {...(state.projectDir ? { onCancel: () => setChoosing(false) } : {})}
+      />
+    );
+  }
+
   if (!draft) {
+    const repository = shareableRemote(state.git?.remote);
     return (
       <Welcome
         state={state}
+        onChangeProject={() => setChoosing(true)}
         onStart={async (profileName, projectName) => {
           const profile = await api.profile(profileName);
-          setDraft(teamConfigFromProfile(profile, { name: projectName }) as TeamConfigInput);
+          setDraft(
+            teamConfigFromProfile(profile, {
+              name: projectName,
+              ...(repository ? { repository } : {}),
+            }) as TeamConfigInput,
+          );
           setTab("team");
         }}
       />
@@ -147,8 +170,18 @@ export function App() {
       <header className="topbar">
         <div>
           <h1>agent-team</h1>
-          <div className="muted small" title={state.configPath}>
+          <div className="muted small" title={state.configPath ?? ""}>
             {state.projectDir}
+            {state.git?.remote ? ` · ${state.git.remote}` : ""}{" "}
+            <button
+              className="link small"
+              onClick={() => {
+                if (!dirty || confirm("You have unsaved changes. Switch project anyway?"))
+                  setChoosing(true);
+              }}
+            >
+              Change project
+            </button>
           </div>
         </div>
         <div className="topbar-actions">
@@ -195,6 +228,15 @@ export function App() {
           );
         })}
       </nav>
+
+      {state.git && !state.git.isRepo && (
+        <div className="notice error banner" role="alert">
+          <span>
+            {state.projectDir} isn't a git repository, so the team's work won't be tracked. Use
+            "Change project" to make it one, or pick another repository.
+          </span>
+        </div>
+      )}
 
       {notice && (
         <div className={`notice ${notice.kind}`} role="alert">

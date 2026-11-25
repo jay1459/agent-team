@@ -3,7 +3,7 @@
 Run a software project with a team of Claude Code agents, led by a project manager agent.
 
 You choose the team in a local web page: which roles are on (PM, architect, lead developer,
-developers, presales, sales), which model each one uses, and which specialists to bring in
+developers, QA, UAT testers, security, legal, presales, sales), which model each one uses, and which specialists to bring in
 (Azure, Dynamics 365, AWS or any service you describe). `agent-team` turns that choice into files
 Claude Code already understands. Then you run `claude` in your project and type `/team <goal>`.
 
@@ -12,16 +12,19 @@ Claude Code already understands. Then you run `claude` in your project and type 
 Needs Node.js 22.12+ and [Claude Code](https://code.claude.com).
 
 ```sh
-cd ~/my-project
-npx @jay1459/agent-team ui          # set up the team in your browser
+cd ~/projects
+npx @jay1459/agent-team ui          # choose or create the repository, then set up the team
 # or, in the terminal:
-npx @jay1459/agent-team init --profile dev-team
-npx @jay1459/agent-team apply
+npx @jay1459/agent-team init --new my-project --github private --profile dev-team
+cd my-project && npx @jay1459/agent-team apply
 
 claude                              # then type: /team add a login page with email sign-in
 ```
 
-`ui` prints a link such as `http://127.0.0.1:7420/#token=…`. The page has tabs for:
+`ui` prints a link such as `http://127.0.0.1:7420/#token=…`. It starts by asking **where the team
+works**: create a new git repository (optionally on GitHub too), use an existing one, or clone one.
+The team's code, documents and decisions always go in that repository, never in agent-team's own
+folder, which is refused. Then pick a starting team. The page has tabs for:
 
 - **Team:** roles, models, how many developers or salespeople, tools, extra instructions
 - **Specialists:** catalog services and your own, with optional MCP servers
@@ -59,14 +62,22 @@ case it's left in place with a warning.
 
 ## Roles
 
-| Role      | Default model | What it does                                                | Tools                        |
-| --------- | ------------- | ----------------------------------------------------------- | ---------------------------- |
-| PM        | opus          | Plans, delegates, reviews, reports, stops at approval gates | Your Claude Code session     |
-| Architect | opus          | Solution design, technology choices, decision records       | Read, write docs, web        |
-| Lead dev  | sonnet        | Splits designs into tasks, project set-up, code review      | Read, edit, Bash             |
-| Developer | sonnet        | Builds features and fixes; up to 10 in parallel             | Read, edit, Bash             |
-| Presales  | sonnet        | Requirements, solution outlines, estimates, proposals       | Read, write docs, web        |
-| Sales     | haiku         | Account research, email drafts, pitch material; up to 10    | Read, write docs, web search |
+| Role       | Default model | What it does                                                             | Tools                        |
+| ---------- | ------------- | ------------------------------------------------------------------------ | ---------------------------- |
+| PM         | opus          | Plans, delegates, reviews, reports, stops at approval gates              | Your Claude Code session     |
+| Architect  | opus          | Solution design, technology choices, decision records                    | Read, write docs, web        |
+| Lead dev   | sonnet        | Splits designs into tasks, project set-up, code review                   | Read, edit, Bash             |
+| Developer  | sonnet        | Builds features and fixes; 1–10, or as many as the PM needs              | Read, edit, Bash             |
+| QA         | sonnet        | Test plans, automated tests, bug reports; several at once                | Read, edit tests, Bash       |
+| UAT tester | sonnet        | Walks through user scenarios end to end, signs work off                  | Read, run, write reports     |
+| Security   | opus          | Threat models, security reviews, dependency and secret checks            | Read, Bash, write reports    |
+| Legal      | opus          | Licences, data protection, terms and contract wording (not legal advice) | Read, write docs, web        |
+| Presales   | sonnet        | Requirements, solution outlines, estimates, proposals                    | Read, write docs, web        |
+| Sales      | haiku         | Account research, email drafts, pitch material; up to 10                 | Read, write docs, web search |
+
+For roles that can have several agents (developers, QA, UAT testers, sales) you can set a number,
+or choose **PM decides**: the team gets one agent definition and the PM runs as many copies at once
+as the work needs.
 
 Models are aliases (`opus`, `sonnet`, `haiku`, `inherit`), so they follow the latest model in each
 family. You can pin a full model ID such as `claude-sonnet-5-5` instead. Each role can also add

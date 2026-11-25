@@ -10,12 +10,15 @@ const TOKEN = "test-token-123";
 
 beforeEach(async () => {
   process.env.AGENT_TEAM_HOME = tempDir("agent-team-home-");
-  project = tempDir();
+  // Each test gets its own projects folder, with the starting project inside it.
+  project = join(tempDir("agent-team-root-"), "project");
+  mkdirSync(project);
   const webDir = tempDir("agent-team-web-");
   writeFileSync(join(webDir, "index.html"), "<!doctype html><title>ui</title>");
   ui = await startUiServer({
     projectDir: project,
     configPath: join(project, "team.json"),
+    projectsRoot: join(project, ".."),
     catalog,
     host: "127.0.0.1",
     port: 0,
@@ -89,10 +92,19 @@ describe("UI server", () => {
       "architect",
       "lead-dev",
       "developer",
+      "qa",
+      "uat-tester",
+      "security",
+      "legal",
       "presales",
       "sales",
     ]);
-    expect(cat.roles.find((r) => r.id === "developer")!.team).toBe(true);
+    expect(cat.roles.filter((r) => r.team).map((r) => r.id)).toEqual([
+      "developer",
+      "qa",
+      "uat-tester",
+      "sales",
+    ]);
     expect((body.profiles as { name: string }[]).map((p) => p.name)).toEqual([
       "consultancy",
       "dev-team",
@@ -202,6 +214,74 @@ describe("UI server", () => {
     expect(run.body).toHaveLength(2);
     expect((await call("GET", "/api/runs/2026-01-01T00-00-00-000Z")).status).toBe(404);
     expect((await call("GET", "/api/runs/..%2f..%2fteam")).status).toBe(404);
+  });
+
+  it("switches project: create, open and clone, never into agent-team itself", async () => {
+    const root = join(project, "..");
+    const created = await call("POST", "/api/project/create", { name: "fresh-repo" });
+    expect(created.status).toBe(200);
+    expect(created.body).toMatchObject({ dir: join(root, "fresh-repo"), git: { isRepo: true } });
+    const state = await call("GET", "/api/state");
+    expect(state.body).toMatchObject({
+      projectDir: join(root, "fresh-repo"),
+      exists: false,
+      git: { isRepo: true },
+    });
+    expect((await call("PUT", "/api/config", { config: team })).status).toBe(200);
+    expect(existsSync(join(root, "fresh-repo", "team.json"))).toBe(true);
+
+    expect((await call("POST", "/api/project/create", { name: "fresh-repo" })).status).toBe(422);
+    expect(
+      (await call("POST", "/api/project/create", { name: "x", github: "internal" })).status,
+    ).toBe(400);
+    const cloned = await call("POST", "/api/project/clone", {
+      url: `file://${join(root, "fresh-repo")}`,
+      name: "the-clone",
+    });
+    expect(cloned.body).toMatchObject({ dir: join(root, "the-clone"), git: { isRepo: true } });
+
+    mkdirSync(join(root, "agent-team-copy"));
+    writeFileSync(
+      join(root, "agent-team-copy", "package.json"),
+      JSON.stringify({ name: "agent-team-monorepo" }),
+    );
+    const refused = await call("POST", "/api/project/open", {
+      path: "agent-team-copy",
+      init: true,
+    });
+    expect(refused.status).toBe(422);
+    expect((refused.body.errors as string[])[0]).toMatch(/part of agent-team itself/);
+
+    const listed = (await call("GET", "/api/projects")).body as unknown as { name: string }[];
+    expect(listed.map((p) => p.name)).toEqual(expect.arrayContaining(["fresh-repo", "the-clone"]));
+    expect(listed.map((p) => p.name)).not.toContain("agent-team-copy");
+  });
+
+  it("asks for a project before anything else when started without one", async () => {
+    const other = await startUiServer({
+      projectDir: null,
+      projectsRoot: tempDir(),
+      startProblem: "This is agent-team's own folder.",
+      catalog,
+      host: "127.0.0.1",
+      port: 0,
+      token: TOKEN,
+      version: "0",
+    });
+    try {
+      const base2 = other.url.split("/#")[0]!;
+      const get = (p: string) =>
+        fetch(base2 + p, { headers: { Authorization: `Bearer ${TOKEN}` } });
+      const state = (await (await get("/api/state")).json()) as Record<string, unknown>;
+      expect(state).toMatchObject({
+        projectDir: null,
+        projectProblem: "This is agent-team's own folder.",
+        exists: false,
+      });
+      expect((await get("/api/runs")).status).toBe(409);
+    } finally {
+      await other.close();
+    }
   });
 
   it("rejects non-JSON and oversized bodies", async () => {

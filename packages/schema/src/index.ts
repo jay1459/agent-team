@@ -93,19 +93,32 @@ export type McpServer = z.infer<typeof McpServerSchema>;
 // Roles
 // ---------------------------------------------------------------------------
 
-export const ROLE_IDS = ["pm", "architect", "lead-dev", "developer", "presales", "sales"] as const;
+export const ROLE_IDS = [
+  "pm",
+  "architect",
+  "lead-dev",
+  "developer",
+  "qa",
+  "uat-tester",
+  "security",
+  "legal",
+  "presales",
+  "sales",
+] as const;
 export const RoleIdSchema = z.enum(ROLE_IDS);
 export type RoleId = z.infer<typeof RoleIdSchema>;
 
 /** Roles that can be staffed by more than one agent. */
-export const TEAM_ROLES: readonly RoleId[] = ["developer", "sales"];
+export const TEAM_ROLES: readonly RoleId[] = ["developer", "qa", "uat-tester", "sales"];
 export const MAX_TEAM_SIZE = 10;
+/** Team roles only: one agent definition, and the PM runs as many copies at once as the work needs. */
+export const PM_DECIDES = "pm-decides";
 
 export const RoleConfigSchema = z.object({
   enabled: z.boolean(),
   model: ModelSchema.optional(),
   /** Number of agents for team roles (developer, sales). */
-  count: z.number().int().min(1).max(MAX_TEAM_SIZE).optional(),
+  count: z.union([z.number().int().min(1).max(MAX_TEAM_SIZE), z.literal(PM_DECIDES)]).optional(),
   /** Extra instructions appended to the catalog prompt. */
   promptAppend: z.string().max(20_000).optional(),
   /** Replaces the catalog's tool list for this role. */
@@ -218,7 +231,7 @@ function checkTeamBody(team: TeamBody, ctx: z.RefinementCtx) {
       ctx.addIssue({
         code: "custom",
         path: ["roles", id, "count"],
-        message: `Only ${TEAM_ROLES.join(" and ")} can have more than one agent`,
+        message: `Only ${TEAM_ROLES.slice(0, -1).join(", ")} and ${TEAM_ROLES.at(-1)} can have more than one agent`,
       });
     }
   }
@@ -270,6 +283,14 @@ export const TeamConfigSchema = z
     project: z.object({
       name: z.string().trim().min(1, "Give the project a name").max(120),
       summary: z.string().max(5_000).optional(),
+      /** The git remote the team's work goes to, if there is one. Shown to the PM. */
+      repository: z
+        .string()
+        .regex(
+          /^(https:\/\/|ssh:\/\/|git@)[^\s]+$/,
+          "Use an https://, ssh:// or git@ repository address",
+        )
+        .optional(),
     }),
     ...teamBody,
     /** Names the agents may need, mapped to environment variables. Never literal values. */

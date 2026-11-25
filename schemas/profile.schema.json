@@ -52,6 +52,10 @@
           "architect",
           "lead-dev",
           "developer",
+          "qa",
+          "uat-tester",
+          "security",
+          "legal",
           "presales",
           "sales"
         ]
@@ -81,9 +85,17 @@
             ]
           },
           "count": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 10
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              {
+                "type": "string",
+                "const": "pm-decides"
+              }
+            ]
           },
           "promptAppend": {
             "type": "string",
