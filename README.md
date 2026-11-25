@@ -160,6 +160,29 @@ It needs `tmux` and Claude Code on the machine running agent-team: the session r
 tmux session (one per project), which you can also attach to in a terminal. It uses your Claude
 plan's usage like any other Claude Code session.
 
+### From any folder: `/team <project> <goal>`
+
+```sh
+agent-team install-command
+```
+
+installs `/team` as a user-level Claude Code command. In a session started in the folder that holds
+your projects, `/team shop Build the checkout` starts the `shop` team in a Remote Control session
+and replies with its link. Without a project name it asks which one. Inside a project that has a
+team, it runs the team right there, like the project's own `/team`. (Claude Code gives a user
+command precedence over a project command with the same name, so the installed one covers both.
+When it runs a team in place, the PM uses the session's model rather than the PM model set for the
+team.)
+
+The same steps are available in the terminal:
+
+| Command                                               | Does                                                     |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| `agent-team projects`                                 | Projects with a team in this folder, and their sessions  |
+| `agent-team start -C <project> "<goal>"`              | Apply the team if needed, start a Remote Control session |
+| `agent-team session status\|trust\|stop -C <project>` | Check it, answer the folder-trust question, or stop it   |
+| `agent-team install-command [--uninstall]`            | Add or remove the user-level `/team`                     |
+
 ## Unattended runs
 
 `agent-team run` runs the same team without a chat, on the

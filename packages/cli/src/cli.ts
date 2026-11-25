@@ -12,10 +12,29 @@ import { applyPlan, diffChange, pendingChanges, planApply, summarisePlan } from 
 import { deleteProfile, listProfiles, loadProfile, saveProfile } from "./profiles.js";
 import { isLoopback, startUiServer } from "./server.js";
 import {
+  defaultSessionDeps,
+  SESSION_PERMISSION_MODES,
+  SessionError,
+  sessionStatus,
+  startSession,
+  stopSession,
+  trustFolder,
+  type SessionDeps,
+  type SessionPermissionMode,
+  type SessionStatus,
+} from "./rc-session.js";
+import {
+  cliInvocation,
+  CommandError,
+  installUserCommand,
+  uninstallUserCommand,
+} from "./team-command.js";
+import {
   cloneProject,
   createProject,
   gitInfo,
   initialProject,
+  listProjects,
   projectProblem,
   shareableRemote,
   ProjectError,
@@ -61,6 +80,13 @@ Usage
   agent-team run --continue "<reply>"
                               Continue the latest run (e.g. answer the PM's question)
   agent-team runs             List runs and what they cost
+  agent-team start "<goal>" [--name <name>] [--permission-mode <mode>]
+                              Start the team in a Claude Code session with Remote Control
+  agent-team session [status|trust|stop]
+                              Check, answer the folder-trust question for, or stop that session
+  agent-team projects         List the projects with a team in this folder
+  agent-team install-command [--force] [--uninstall]
+                              Install /team for Claude Code sessions started in any folder
   agent-team ui [--host <addr>] [--port <n>] [--projects-root <folder>]
                               Edit the team in your browser (default http://127.0.0.1:7420)
 
@@ -99,6 +125,9 @@ function parse(argv: string[]) {
       diff: { type: "boolean" },
       host: { type: "string" },
       budget: { type: "string" },
+      "permission-mode": { type: "string" },
+      wait: { type: "string" },
+      uninstall: { type: "boolean" },
       layered: { type: "boolean" },
       flat: { type: "boolean" },
       continue: { type: "boolean" },
@@ -448,7 +477,135 @@ async function cmdDoctor(args: Args, io: Io, catalog: Catalog): Promise<number> 
   return errors ? 1 : 0;
 }
 
+/** Swapped out in tests. */
+export const sessionCli: {
+  deps: () => SessionDeps;
+  sleep: (ms: number) => Promise<void>;
+  script: () => string;
+} = {
+  deps: defaultSessionDeps,
+  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  script: () => fileURLToPath(import.meta.url),
+};
+
+function describeSession(s: SessionStatus, projectDir: string): string {
+  if (!s.running) return `No team session is running for ${projectDir}.`;
+  if (s.waitingFor === "trust") {
+    return `Claude Code is asking whether you trust ${projectDir} before it starts.\nIf you do, run: agent-team session trust -C ${projectDir}`;
+  }
+  if (s.url) return `The team is running. Follow it in the Claude app or at:\n  ${s.url}`;
+  return `The team's session is starting (tmux session ${s.tmuxSession}); the Remote Control link isn't showing yet.`;
+}
+
+/** Poll until the session shows its link or a question, or the time runs out. */
+async function settle(
+  projectDir: string,
+  deps: SessionDeps,
+  seconds: number,
+): Promise<SessionStatus> {
+  let status = sessionStatus(projectDir, deps);
+  for (
+    let waited = 0;
+    waited < seconds * 1000 && status.running && !status.url && !status.waitingFor;
+    waited += 1000
+  ) {
+    await sessionCli.sleep(1000);
+    status = sessionStatus(projectDir, deps);
+  }
+  return status;
+}
+
+async function cmdStart(args: Args, io: Io, catalog: Catalog): Promise<number> {
+  const { projectDir, configPath } = paths(args, io);
+  refuseAgentTeamFolder(projectDir);
+  const goal = args.positionals.slice(1).join(" ").trim();
+  if (!goal) throw new UsageError('Usage: agent-team start "<goal>" [-C <project>]');
+  const mode = args.values["permission-mode"];
+  if (mode && !SESSION_PERMISSION_MODES.includes(mode as SessionPermissionMode)) {
+    throw new UsageError(`--permission-mode must be one of ${SESSION_PERMISSION_MODES.join(", ")}`);
+  }
+  const wait = Number(args.values.wait ?? 30);
+  if (!(wait >= 0)) throw new UsageError(`Not a valid --wait: ${args.values.wait}`);
+
+  const config = loadConfig(configPath, io);
+  if (!config) return 1;
+  const plan = planApply(projectDir, generate(config, catalog));
+  const pending = pendingChanges(plan);
+  if (pending.length) {
+    applyPlan(plan);
+    io.out(
+      `Applied the team's files (${pending.length} change${pending.length === 1 ? "" : "s"}).`,
+    );
+  }
+  const deps = sessionCli.deps();
+  startSession(
+    {
+      projectDir,
+      goal,
+      name: args.values.name ?? `${config.project.name} team`,
+      ...(mode ? { permissionMode: mode as SessionPermissionMode } : {}),
+    },
+    deps,
+  );
+  io.out(describeSession(await settle(projectDir, deps, wait), projectDir));
+  return 0;
+}
+
+async function cmdSession(args: Args, io: Io): Promise<number> {
+  const { projectDir } = paths(args, io);
+  const deps = sessionCli.deps();
+  const sub = args.positionals[1] ?? "status";
+  if (sub === "status") io.out(describeSession(sessionStatus(projectDir, deps), projectDir));
+  else if (sub === "trust") {
+    trustFolder(projectDir, deps);
+    io.out(
+      describeSession(await settle(projectDir, deps, Number(args.values.wait ?? 30)), projectDir),
+    );
+  } else if (sub === "stop") {
+    const was = sessionStatus(projectDir, deps).running;
+    stopSession(projectDir, deps);
+    io.out(was ? "Stopped the team's session." : `No team session is running for ${projectDir}.`);
+  } else throw new UsageError(`Unknown session command "${sub}". Use status, trust or stop.`);
+  return 0;
+}
+
+async function cmdProjects(args: Args, io: Io): Promise<number> {
+  const root = resolve(io.cwd, args.values.dir ?? ".");
+  const deps = sessionCli.deps();
+  const teams = listProjects(root).filter((p) => p.hasTeam);
+  if (!teams.length) {
+    io.out(`No projects with a team in ${root}. Create one with agent-team ui or agent-team init.`);
+    return 0;
+  }
+  for (const p of teams) {
+    const s = sessionStatus(p.dir, deps);
+    const note = s.running ? (s.url ? `session running: ${s.url}` : "session starting") : "";
+    io.out(`${p.name.padEnd(28)} ${p.dir}${note ? `  (${note})` : ""}`);
+  }
+  return 0;
+}
+
+async function cmdInstallCommand(args: Args, io: Io, catalog: Catalog): Promise<number> {
+  if (args.values.uninstall) {
+    const removed = uninstallUserCommand();
+    io.out(removed ? `Removed ${removed}.` : "The /team command isn't installed.");
+    return 0;
+  }
+  const { path, replaced } = installUserCommand(catalog, cliInvocation(sessionCli.script()), {
+    force: args.values.force ?? false,
+  });
+  io.out(`${replaced ? "Updated" : "Installed"} ${path}.`);
+  io.out(
+    "In a Claude Code session started in a folder of projects, type /team <project> <goal> to start that project's team with Remote Control. Inside a project with a team, /team runs the team there.",
+  );
+  return 0;
+}
+
 const COMMANDS: Record<string, (args: Args, io: Io, catalog: Catalog) => Promise<number>> = {
+  start: cmdStart,
+  session: cmdSession,
+  projects: cmdProjects,
+  "install-command": cmdInstallCommand,
   ui: cmdUi,
   doctor: cmdDoctor,
   run: cmdRun,
@@ -475,6 +632,10 @@ export async function main(argv: string[], io: Io, catalog?: Catalog): Promise<n
     if (!run) throw new UsageError(`Unknown command "${command}". Run \`agent-team --help\`.`);
     return await run(args, io, catalog ?? loadCatalog());
   } catch (err) {
+    if (err instanceof SessionError || err instanceof CommandError) {
+      io.err(err.message);
+      return 1;
+    }
     if (err instanceof ProjectError) {
       io.err(err.message);
       return 1;

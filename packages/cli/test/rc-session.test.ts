@@ -5,45 +5,8 @@ import {
   stopSession,
   tmuxSessionName,
   trustFolder,
-  type SessionDeps,
 } from "../src/rc-session.js";
-
-const TRUST =
-  " Quick safety check: Is this a project you created or one you trust?\n ❯ No, exit\n   Yes, I trust this folder\n";
-const ACTIVE =
-  " /remote-control is active · Continue here, on your phone, or at https://claude.ai/code/session_ABC123\n❯ \n";
-
-/** A fake tmux that keeps sessions in memory. */
-function fakeTmux(installed = ["tmux", "claude"]) {
-  const sessions = new Map<string, string>();
-  const calls: string[][] = [];
-  const deps: SessionDeps = {
-    which: (c) => (installed.includes(c) ? `/usr/bin/${c}` : null),
-    exec: (command, args) => {
-      calls.push([command, ...args]);
-      const target = (args[args.indexOf("-t") + 1] ?? "").replace(/^=/, "").replace(/:$/, "");
-      const ok = (stdout = "") => ({ status: 0, stdout, stderr: "" });
-      switch (args[0]) {
-        case "has-session":
-          return sessions.has(target) ? ok() : { status: 1, stdout: "", stderr: "no session" };
-        case "new-session":
-          sessions.set(args[args.indexOf("-s") + 1]!, TRUST);
-          return ok();
-        case "capture-pane":
-          return ok(sessions.get(target) ?? "");
-        case "send-keys":
-          if (args.at(-1) === "Enter") sessions.set(target, ACTIVE);
-          return ok();
-        case "kill-session":
-          sessions.delete(target);
-          return ok();
-        default:
-          return { status: 1, stdout: "", stderr: "unknown" };
-      }
-    },
-  };
-  return { deps, calls, sessions };
-}
+import { fakeTmux } from "./helpers.js";
 
 const dir = "/home/me/projects/My Project!";
 
