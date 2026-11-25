@@ -16,6 +16,7 @@ export type Templates = {
   claudeSection: string;
   teamCommand: string;
   specialist: string;
+  userTeamCommand: string;
 };
 
 export type Catalog = {
@@ -105,6 +106,7 @@ export function loadCatalog(dir = defaultCatalogDir()): Catalog {
       claudeSection: template("claude-section.md"),
       teamCommand: template("team-command.md"),
       specialist: template("specialist.md"),
+      userTeamCommand: template("user-team-command.md"),
     },
   };
 }
