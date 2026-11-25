@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "./fixtures.ts";
 
@@ -279,4 +287,55 @@ test("starts by choosing the team's repository, never agent-team's own folder", 
   await page.getByRole("button", { name: "Use this repository" }).click();
   await expect(page.getByText(/part of agent-team itself/)).toBeVisible();
   expect(existsSync(join(ui.projectDir, "agent-team", ".git"))).toBe(false);
+});
+
+test("starts the team in a Remote Control session", async ({ page, startUi }) => {
+  // Fake tmux and claude: sessions are files; the screen shows the trust question until Enter.
+  const bin = mkdtempSync(join(tmpdir(), "agent-team-e2e-bin-"));
+  const state = mkdtempSync(join(tmpdir(), "agent-team-e2e-tmux-"));
+  writeFileSync(join(bin, "claude"), "#!/bin/sh\nexit 0\n");
+  writeFileSync(
+    join(bin, "tmux"),
+    `#!/bin/sh
+S=${state}
+cmd=$1; shift
+t=""; s=""
+while [ $# -gt 0 ]; do case $1 in -t) t=$(echo "$2" | sed 's/^=//; s/:$//'); shift;; -s) s=$2; shift;; esac; shift; done
+case $cmd in
+  has-session) [ -f "$S/$t" ];;
+  new-session) printf '%s\\n' "Yes, I trust this folder" > "$S/$s"; echo "$s" > "$S/last-name";;
+  capture-pane) cat "$S/$t" 2>/dev/null;;
+  send-keys) printf '%s\\n' "/remote-control is active at https://claude.ai/code/session_E2E42" > "$S/$t";;
+  kill-session) rm -f "$S/$t";;
+esac
+`,
+  );
+  chmodSync(join(bin, "claude"), 0o755);
+  chmodSync(join(bin, "tmux"), 0o755);
+
+  const ui = await startUi({
+    path: bin,
+    config: {
+      version: 1,
+      project: { name: "Shop" },
+      roles: { pm: { enabled: true }, developer: { enabled: true } },
+    },
+  });
+  await page.goto(ui.url);
+  await page.getByRole("tab", { name: "Start" }).click();
+  await page.getByLabel("Goal for the PM").fill("Build the checkout");
+  await expect(page.getByLabel("Session name")).toHaveValue("Shop team");
+  await page.getByLabel("Permissions").selectOption("acceptEdits");
+  await page.getByRole("button", { name: "Apply and start Remote Control session" }).click();
+
+  await expect(page.getByText("The team is running")).toBeVisible();
+  await page.getByRole("button", { name: "Yes, trust this folder" }).click();
+  await expect(
+    page.getByRole("link", { name: "https://claude.ai/code/session_E2E42" }),
+  ).toBeVisible();
+  expect(existsSync(join(ui.projectDir, ".claude/commands/team.md"))).toBe(true);
+
+  page.once("dialog", (d) => void d.accept());
+  await page.getByRole("button", { name: "Stop session" }).click();
+  await expect(page.getByRole("button", { name: "Start Remote Control session" })).toBeVisible();
 });

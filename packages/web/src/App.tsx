@@ -5,6 +5,7 @@ import { JsonTab } from "./components/JsonTab.tsx";
 import { PreviewTab } from "./components/PreviewTab.tsx";
 import { ProfilesTab } from "./components/ProfilesTab.tsx";
 import { RunsTab } from "./components/RunsTab.tsx";
+import { StartTab } from "./components/StartTab.tsx";
 import { SpecialistsTab } from "./components/SpecialistsTab.tsx";
 import { TeamTab } from "./components/TeamTab.tsx";
 import { Welcome } from "./components/Welcome.tsx";
@@ -14,7 +15,7 @@ import { errorsUnder, shareableRemote } from "./util.ts";
 
 export type Edit = (change: (draft: TeamConfigInput) => void) => void;
 
-type Tab = "team" | "specialists" | "workflow" | "profiles" | "preview" | "runs" | "json";
+type Tab = "team" | "specialists" | "workflow" | "profiles" | "preview" | "start" | "runs" | "json";
 
 const TABS: { id: Tab; label: string; paths: string[] }[] = [
   { id: "team", label: "Team", paths: ["project", "defaults", "roles"] },
@@ -22,6 +23,7 @@ const TABS: { id: Tab; label: string; paths: string[] }[] = [
   { id: "workflow", label: "Workflow", paths: ["workflow", "secrets", "runner"] },
   { id: "profiles", label: "Profiles", paths: ["extends"] },
   { id: "preview", label: "Preview & apply", paths: [] },
+  { id: "start", label: "Start", paths: [] },
   { id: "runs", label: "Runs", paths: [] },
   { id: "json", label: "JSON", paths: ["(root)", "version", "$schema"] },
 ];
@@ -279,6 +281,17 @@ export function App() {
             draft={draft}
             errors={errors}
             notify={setNotice}
+            onApplied={() => {
+              setSaved(JSON.stringify(draft));
+              setState((s) => (s ? { ...s, exists: true } : s));
+            }}
+          />
+        )}
+        {tab === "start" && (
+          <StartTab
+            draft={draft}
+            dirty={dirty}
+            valid={errors.length === 0}
             onApplied={() => {
               setSaved(JSON.stringify(draft));
               setState((s) => (s ? { ...s, exists: true } : s));

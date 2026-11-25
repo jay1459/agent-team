@@ -284,6 +284,72 @@ describe("UI server", () => {
     }
   });
 
+  it("starts, trusts and stops a Remote Control session for the project", async () => {
+    // Uses the fake tmux from rc-session.test.ts's approach, through the server's sessionDeps.
+    await ui.close();
+    const screens = new Map<string, string>();
+    const started: string[][] = [];
+    ui = await startUiServer({
+      projectDir: project,
+      projectsRoot: join(project, ".."),
+      catalog,
+      host: "127.0.0.1",
+      port: 0,
+      token: TOKEN,
+      version: "0",
+      sessionDeps: {
+        which: (c) => `/usr/bin/${c}`,
+        exec: (_cmd, args) => {
+          const target = (args[args.indexOf("-t") + 1] ?? "").replace(/^=/, "").replace(/:$/, "");
+          if (args[0] === "has-session")
+            return { status: screens.has(target) ? 0 : 1, stdout: "", stderr: "" };
+          if (args[0] === "new-session") {
+            started.push(args);
+            screens.set(args[args.indexOf("-s") + 1]!, "Yes, I trust this folder");
+          }
+          if (args[0] === "send-keys" && args.at(-1) === "Enter")
+            screens.set(target, "at https://claude.ai/code/session_X1");
+          if (args[0] === "kill-session") screens.delete(target);
+          return { status: 0, stdout: screens.get(target) ?? "", stderr: "" };
+        },
+      },
+    });
+
+    expect((await call("GET", "/api/session")).body).toMatchObject({
+      available: true,
+      running: false,
+      upToDate: null,
+    });
+    expect((await call("POST", "/api/session/start", { goal: "Go" })).status).toBe(409); // no team.json yet
+
+    await call("PUT", "/api/config", { config: team });
+    expect((await call("GET", "/api/session")).body).toMatchObject({ upToDate: false });
+    const stale = await call("POST", "/api/session/start", { goal: "Go" });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toMatch(/out of date/);
+
+    const start = await call("POST", "/api/session/start", {
+      goal: "Build the thing",
+      apply: true,
+      permissionMode: "plan",
+    });
+    expect(start.status).toBe(200);
+    expect(start.body).toMatchObject({ running: true, waitingFor: "trust", upToDate: true });
+    expect(existsSync(join(project, ".claude/commands/team.md"))).toBe(true);
+    expect(started[0]!.slice(-4)).toEqual([
+      "--remote-control=Contoso team",
+      "--permission-mode",
+      "plan",
+      "/team Build the thing",
+    ]);
+
+    expect((await call("POST", "/api/session/trust")).body).toMatchObject({
+      url: "https://claude.ai/code/session_X1",
+    });
+    expect((await call("POST", "/api/session/trust")).status).toBe(409);
+    expect((await call("POST", "/api/session/stop")).body).toMatchObject({ running: false });
+  });
+
   it("rejects non-JSON and oversized bodies", async () => {
     const res = await fetch(`${base()}/api/config`, {
       method: "PUT",
